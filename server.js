@@ -1,9 +1,14 @@
 import express from "express";
 import dotenv from "dotenv";
+dotenv.config();
+
 import sequelize from "./config/db.js";
 import "./models/associations.js";
 import userRoutes from "./routes/user.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
+import designationRoutes from "./routes/designations.routes.js";
+import cityRoutes from "./routes/cities.routes.js";
+import regionRoutes from "./routes/regions.routes.js"
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -13,7 +18,6 @@ const __dirname = path.dirname(__filename);
 import cors from "cors";
 import morgan from "morgan";
 const PORT = process.env.PORT || 5000;
-dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -21,11 +25,15 @@ app.use(cors());
 app.use(morgan('dev'));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(express.static(path.join(__dirname, 'build')));
 
 
 
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/designations", designationRoutes);
+app.use("/api/cities", cityRoutes);
+app.use("/api/regions", regionRoutes);
 
 
 app.get("/api", (req, res) => {
@@ -33,6 +41,12 @@ app.get("/api", (req, res) => {
         "message": "API of coreconnect backend is running ...."
     })
 });
+
+
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
+
 
 
 

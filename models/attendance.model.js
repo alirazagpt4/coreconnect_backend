@@ -17,20 +17,20 @@ const Attendance = sequelize.define('Attendance', {
     },
     image_uri: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
         comment: "Path of the uploaded image in uploads folder"
     },
     latitude: {
         type: DataTypes.DECIMAL(10, 8), // Precision for GPS coordinates
-        allowNull: false
+        allowNull: true
     },
     longitude: {
         type: DataTypes.DECIMAL(11, 8),
-        allowNull: false
+        allowNull: true
     },
     mobile_time: {
         type: DataTypes.STRING, // Jo mobile se 24hr format mein aa raha hai
-        allowNull: false
+        allowNull: true
     },
     isLeave: {
         type: DataTypes.BOOLEAN,

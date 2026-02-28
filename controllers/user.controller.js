@@ -1,4 +1,4 @@
-import { User, City, Region, Designation } from "../models/associations.js";;
+import { User, City, Region, Designation } from "../models/associations.js";
 import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -119,7 +119,7 @@ export const userProfile = async (req, res) => {
                 { model: Region, as: 'region', attributes: ['name'] },
                 { model: Designation, as: 'designation', attributes: ['name'] },
                 // Agar dekhna ho ke ye kis ko report karta hai:
-                { model: User, as: 'manager', attributes: ['name', 'role'] } 
+                { model: User, as: 'manager', attributes: ['name', 'role'] }
             ]
         });
 
@@ -135,10 +135,122 @@ export const userProfile = async (req, res) => {
 
     } catch (err) {
         console.log("❌ Profile Error:", err);
-        res.status(500).json({ 
-            message: "Internal Server Error", 
-            error: err.message 
+        res.status(500).json({
+            message: "Internal Server Error",
+            error: err.message
         });
     }
 };
 
+
+export const getAllUsers = async (req, res) => {
+    try {
+        // 1. Query parameters se values uthaein (Default values set hain)
+        const page = parseInt(req.query.page) || 1; // Konsa page chahiye?
+        const limit = parseInt(req.query.limit) || 10; // Ek page par kitne users?
+        const search = req.query.search || ""; // Searching keyword
+
+        const offset = (page - 1) * limit; // Kitne records skip karne hain
+
+        // 2. Searching Filter (Name ya Phone par search karega)
+        let whereClause = {};
+        if (search) {
+            whereClause = {
+                [Op.or]: [
+                    { name: { [Op.like]: `%${search}%` } },
+                    { phone: { [Op.like]: `%${search}%` } }
+                ]
+            };
+        }
+
+        // 3. Database se "findAndCountAll" use karein (Ye total count bhi deta hai)
+        const { count, rows } = await User.findAndCountAll({
+            where: whereClause,
+            limit: limit,
+            offset: offset,
+            attributes: { exclude: ['password'] }, // Security: Password nahi chahiye
+            order: [['createdAt', 'DESC']], // Latest users sabse upar
+            include: [
+                { model: City, as: 'city', attributes: ['name'] },
+                { model: Designation, as: 'designation', attributes: ['name'] },
+                { model: Region, as: 'region', attributes: ['name'] },
+                {
+                    model: User,
+                    as: 'manager',
+                    attributes: ['id', 'name']
+                }
+            ]
+        });
+
+        // 4. Response with Pagination Info
+        res.status(200).json({
+            success: true,
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+            users: rows
+        });
+
+    } catch (err) {
+        console.log("❌ Get Users Error:", err);
+        res.status(500).json({
+            message: "Internal Server Error",
+            error: err.message
+        });
+    }
+};
+
+
+export const updateUser = async (req, res) => {
+    const { id } = req.params; // URL se ID uthayenge e.g. /api/users/5
+    const { name, phone, password, cnic, address, city_id, region_id, designation_id, role, reportTo } = req.body;
+
+    try {
+        const user = await User.findByPk(id);
+        if (!user) {
+            return res.status(404).json({ message: "User nahi mila!" });
+        }
+
+        // Agar password update karna hai toh hash karo
+        let updatedData = { name, phone, cnic, address, city_id, region_id, designation_id, role, reportTo };
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            updatedData.password = hashedPassword;
+        }
+
+        // Database mein update karo
+        await user.update(updatedData);
+
+        res.status(200).json({
+            message: "User successfully updated.",
+            user
+        });
+
+    } catch (err) {
+        console.log("❌ Update Error:", err);
+        res.status(500).json({ message: "Internal Server Error", error: err.message });
+    }
+};
+
+
+
+export const deleteUser = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const user = await User.findByPk(id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        await user.destroy();
+
+        res.status(200).json({
+            message: "User successfully deleted!"
+        });
+
+    } catch (err) {
+        console.log("❌ Delete Error:", err);
+        res.status(500).json({ message: "Internal Server Error", error: err.message });
+    }
+};
