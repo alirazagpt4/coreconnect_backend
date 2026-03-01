@@ -3,6 +3,7 @@ import City from './city.model.js';
 import Region from './region.model.js';
 import Designation from './designation.model.js';
 import Attendance from './attendance.model.js';
+import Store from './store.model.js';
 // Relationships
 User.belongsTo(City, { foreignKey: 'city_id', as: 'city' });
 User.belongsTo(Region, { foreignKey: 'region_id', as: 'region' });
@@ -20,4 +21,8 @@ Attendance.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 User.hasMany(Attendance, { foreignKey: 'user_id', as: 'attendances' });
 
 
-export { User, City, Region, Designation, Attendance };
+Store.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
+
+User.hasMany(Store, { foreignKey: 'ba_user_id', as: 'assigned_stores' });
+
+export { User, City, Region, Designation, Attendance, Store };

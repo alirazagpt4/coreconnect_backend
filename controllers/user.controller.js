@@ -7,7 +7,7 @@ dotenv.config();
 
 
 export const createUser = async (req, res) => {
-    const { name, phone, password, cnic, address, city_id, region_id, designation_id, role, reportTo } = req.body;
+    const { name, fullname, phone, password, cnic, address, city_id, region_id, designation_id, role, reportTo } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -25,7 +25,7 @@ export const createUser = async (req, res) => {
         }
 
         const user = await User.create({
-            name, phone, password: hashedPassword, cnic, address, city_id, region_id, designation_id, role, reportTo
+            name, fullname, phone, password: hashedPassword, cnic, address, city_id, region_id, designation_id, role, reportTo
         })
 
         res.status(201).json({
@@ -93,6 +93,7 @@ export const loginUser = async (req, res) => {
                 id: user.id,
                 name: user.name,
                 role: user.role,
+                fullname: user.fullname,
                 city: user.city ? user.city.name : null, // Table se aya hua naam
                 designation: user.designation ? user.designation.name : null // Table se aya hua naam
             }
@@ -168,8 +169,8 @@ export const getAllUsers = async (req, res) => {
             where: whereClause,
             limit: limit,
             offset: offset,
-            attributes: { exclude: ['password'] }, // Security: Password nahi chahiye
-            order: [['createdAt', 'DESC']], // Latest users sabse upar
+            // attributes: { exclude: ['password'] }, // Security: Password nahi chahiye
+            // order: [['createdAt', 'DESC']], // Latest users sabse upar
             include: [
                 { model: City, as: 'city', attributes: ['name'] },
                 { model: Designation, as: 'designation', attributes: ['name'] },
@@ -203,7 +204,7 @@ export const getAllUsers = async (req, res) => {
 
 export const updateUser = async (req, res) => {
     const { id } = req.params; // URL se ID uthayenge e.g. /api/users/5
-    const { name, phone, password, cnic, address, city_id, region_id, designation_id, role, reportTo } = req.body;
+    const { name, fullname, phone, password, cnic, address, city_id, region_id, designation_id, role, reportTo } = req.body;
 
     try {
         const user = await User.findByPk(id);
@@ -212,7 +213,7 @@ export const updateUser = async (req, res) => {
         }
 
         // Agar password update karna hai toh hash karo
-        let updatedData = { name, phone, cnic, address, city_id, region_id, designation_id, role, reportTo };
+        let updatedData = { name, fullname, phone, cnic, address, city_id, region_id, designation_id, role, reportTo };
         if (password) {
             const hashedPassword = await bcrypt.hash(password, 10);
             updatedData.password = hashedPassword;
