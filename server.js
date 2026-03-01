@@ -9,6 +9,7 @@ import attendanceRoutes from "./routes/attendance.routes.js";
 import designationRoutes from "./routes/designations.routes.js";
 import cityRoutes from "./routes/cities.routes.js";
 import regionRoutes from "./routes/regions.routes.js"
+import storeRoutes from "./routes/store.routes.js";
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -31,6 +32,7 @@ app.use(express.static(path.join(__dirname, 'build')));
 
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/store", storeRoutes);
 app.use("/api/designations", designationRoutes);
 app.use("/api/cities", cityRoutes);
 app.use("/api/regions", regionRoutes);

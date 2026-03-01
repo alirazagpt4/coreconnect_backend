@@ -21,6 +21,13 @@ Attendance.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 User.hasMany(Attendance, { foreignKey: 'user_id', as: 'attendances' });
 
 
+Store.belongsTo(City, { foreignKey: 'city_id', as: 'city' });
+City.hasMany(Store, { foreignKey: 'city_id', as: 'stores' });
+
+Store.belongsTo(Region, { foreignKey: 'region_id', as: 'region' });
+Region.hasMany(Store, { foreignKey: 'region_id', as: 'stores' });
+
+
 Store.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
 
 User.hasMany(Store, { foreignKey: 'ba_user_id', as: 'assigned_stores' });
