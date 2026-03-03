@@ -1,4 +1,4 @@
-import { User, City, Region, Designation } from "../models/associations.js";
+import { User, City, Region, Designation, Store } from "../models/associations.js";
 import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -120,7 +120,14 @@ export const userProfile = async (req, res) => {
                 { model: Region, as: 'region', attributes: ['name'] },
                 { model: Designation, as: 'designation', attributes: ['name'] },
                 // Agar dekhna ho ke ye kis ko report karta hai:
-                { model: User, as: 'manager', attributes: ['name', 'role'] }
+                { model: User, as: 'manager', attributes: ['name', 'role'] },
+                // --- Store Include yahan add hoga ---
+                {
+                    model: Store,
+                    as: 'assigned_stores',
+                    attributes: ['id', 'store_name']
+                }
+
             ]
         });
 

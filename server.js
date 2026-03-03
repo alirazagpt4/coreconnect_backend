@@ -10,7 +10,12 @@ import designationRoutes from "./routes/designations.routes.js";
 import cityRoutes from "./routes/cities.routes.js";
 import regionRoutes from "./routes/regions.routes.js"
 import storeRoutes from "./routes/store.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
+import subCategoryRoutes from "./routes/subCategory.routes.js";
+import itemRoutes from "./routes/item.routes.js";
+import saleRoutes from "./routes/sale.routes.js"
 import path from 'path';
+
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -36,6 +41,11 @@ app.use("/api/store", storeRoutes);
 app.use("/api/designations", designationRoutes);
 app.use("/api/cities", cityRoutes);
 app.use("/api/regions", regionRoutes);
+app.use("/api/category", categoryRoutes);
+app.use("/api/subCategory", subCategoryRoutes);
+app.use("/api/items", itemRoutes);
+app.use("/api/sales", saleRoutes);
+
 
 
 app.get("/api", (req, res) => {
