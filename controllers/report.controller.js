@@ -173,3 +173,109 @@ export const getSalesReport = async (req, res) => {
         res.status(500).json({ success: false, message: "Server Error: " + err.message });
     }
 };
+
+
+export const generateSaleExecutiveReport = async (req, res) => {
+    try {
+        const { fromDate, toDate, ba_id } = req.query;
+        const loggedInUserId = req.user.id; // Token se aayi hui ID
+
+        // 1. Hierarchy Logic
+        // Agar query mein ba_id di hai toh wo, warna loggedInUserId
+        let targetUserIds = [];
+        
+        if (ba_id) {
+            targetUserIds = [ba_id];
+        } else {
+            // Check subordinates (Hierarchy)
+            const subordinates = await User.findAll({
+                where: { reportTo: loggedInUserId },
+                attributes: ['id']
+            });
+
+            if (subordinates.length > 0) {
+                targetUserIds = subordinates.map(s => s.id);
+            } else {
+                targetUserIds = [loggedInUserId];
+            }
+        }
+
+        // 2. Common Where Clause
+        const dateFilter = {};
+        if (fromDate && toDate) {
+            dateFilter[Op.between] = [`${fromDate} 00:00:00`, `${toDate} 23:59:59`];
+        }
+
+        // 3. Fetch Attendance
+        const attendances = await Attendance.findAll({
+            where: {
+                user_id: { [Op.in]: targetUserIds },
+                createdAt: dateFilter
+            },
+            include: [{ model: User, as: 'user', attributes: ['fullname', 'name'] }],
+            order: [['createdAt', 'ASC']]
+        });
+
+        // 4. Fetch Sales with Items
+        const sales = await Sale.findAll({
+            where: {
+                ba_user_id: { [Op.in]: targetUserIds },
+                sale_date: dateFilter
+            },
+            include: [
+                {
+                    model: SaleItem, as: 'items',
+                    include: [{ model: ItemMaster, as: 'product', attributes: ['product_name'] }]
+                },
+                { model: Store, as: 'store', attributes: ['store_name'] }
+            ],
+            order: [['sale_date', 'ASC']]
+        });
+
+        // 5. Data Merging Logic (Group by Date)
+        const combinedReport = {};
+
+        // Attendance ko Map mein dalein
+        attendances.forEach(att => {
+            const dateKey = new Date(att.createdAt).toLocaleDateString('en-GB');
+            if (!combinedReport[dateKey]) combinedReport[dateKey] = { date: dateKey, attendance: null, sales: [] };
+            
+            combinedReport[dateKey].attendance = {
+                time: att.mobile_time || 'N/A',
+                status: att.status === 'present' ? 'Present' : (att.isLeave ? 'On Leave' : 'Absent'),
+                baName: att.user?.fullname || att.user?.name
+            };
+        });
+
+        // Sales ko Map mein merge karein
+        sales.forEach(sale => {
+            const dateKey = new Date(sale.sale_date).toLocaleDateString('en-GB');
+            if (!combinedReport[dateKey]) combinedReport[dateKey] = { date: dateKey, attendance: null, sales: [] };
+
+            const items = sale.items.map(item => ({
+                product: item.product?.product_name || 'Unknown',
+                qty: item.quantity,
+                total: item.subtotal
+            }));
+
+            combinedReport[dateKey].sales.push({
+                store: sale.store?.store_name || 'N/A',
+                items: items,
+                saleTotal: sale.total_amount
+            });
+        });
+
+        // Object ko Array mein convert karein mobile UI ke liye
+        const finalData = Object.values(combinedReport).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        res.json({
+            success: true,
+            totalDays: finalData.length,
+            data: finalData
+        });
+
+    } catch (err) {
+        console.error("Executive Report Error:", err);
+        res.status(500).json({ success: false, message: "Report generation failed: " + err.message });
+    }
+};

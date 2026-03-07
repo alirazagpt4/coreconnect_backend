@@ -209,6 +209,56 @@ export const getAllUsers = async (req, res) => {
 };
 
 
+export const getMyTeam = async (req, res) => {
+    try {
+        const loggedInUserId = req.user.id;
+
+        // Hum User table se login user ko find karenge aur uske subordinates include karenge
+        const userWithTeam = await User.findByPk(loggedInUserId, {
+            attributes: ['id', 'fullname', 'name'],
+            include: [{
+                model: User,
+                as: 'subordinates',
+                attributes: ['id', 'fullname', 'name'],
+                // Agar subordinates ke bhi subordinates chahiye hon toh nesting barha sakte hain
+            }]
+        });
+
+        if (!userWithTeam) {
+            return res.status(404).json({ message: "User nahi mila" });
+        }
+
+        // Logic: Agar subordinates hian toh wo list bhejo, warna sirf login user ki info
+        let dropdownData = [];
+
+        if (userWithTeam.subordinates && userWithTeam.subordinates.length > 0) {
+            // Manager/Supervisor case: Poori team ki list
+            dropdownData = userWithTeam.subordinates.map(sub => ({
+                id: sub.id,
+                label: sub.fullname || sub.name
+            }));
+
+            // Optional: Manager apna naam bhi list mein dekhna chahe toh:
+            dropdownData.unshift({ id: userWithTeam.id, label: "My Self (" + (userWithTeam.fullname || userWithTeam.name) + ")" });
+        } else {
+            // Single BA case: Sirf apna data
+            dropdownData = [{
+                id: userWithTeam.id,
+                label: userWithTeam.fullname || userWithTeam.name
+            }];
+        }
+
+        res.json({
+            success: true,
+            data: dropdownData
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+
 export const updateUser = async (req, res) => {
     const { id } = req.params; // URL se ID uthayenge e.g. /api/users/5
     const { name, fullname, phone, password, cnic, address, city_id, region_id, designation_id, role, reportTo } = req.body;
