@@ -9,6 +9,8 @@ import SubCategory from './subCategory.model.js';
 import ItemMaster from './itemMaster.model.js';
 import Sale from './sale.model.js';
 import SaleItem from './saleItems.model.js';
+import ShortItem from './shortItem.model.js';
+import ShortItemDetail from './shortItemDetail.model.js';
 
 
 // Relationships
@@ -72,4 +74,13 @@ SaleItem.belongsTo(Sale, { foreignKey: 'sale_id', as: 'sale_header' });
 SaleItem.belongsTo(ItemMaster, { foreignKey: 'item_id', as: 'product' });
 ItemMaster.hasMany(SaleItem, { foreignKey: 'item_id', as: 'sold_items' })
 
-export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem };
+
+// ShortItem Associations
+ShortItem.hasMany(ShortItemDetail, { foreignKey: 'short_item_id', as: 'details' });
+ShortItemDetail.belongsTo(ShortItem, { foreignKey: 'short_item_id' });
+
+// Item Master ke saath link
+ShortItemDetail.belongsTo(ItemMaster, { foreignKey: 'item_id', as: 'itemInfo' });
+
+
+export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail };

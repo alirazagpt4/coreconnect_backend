@@ -51,7 +51,7 @@ export const startDay = async (req, res) => {
             longitude: lng,
             mobile_time: time,
             isLeave: leaveStatus,
-            status: 'start'
+            status: leaveStatus ? 'absent' : 'present'
         });
 
         // 3. Final Response

@@ -125,7 +125,7 @@ export const userProfile = async (req, res) => {
                 {
                     model: Store,
                     as: 'assigned_stores',
-                    attributes: ['id', 'store_name']
+                    attributes: ['id', 'store_name', 'area']
                 }
 
             ]

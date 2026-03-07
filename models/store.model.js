@@ -4,6 +4,10 @@ import sequelize from "../config/db.js";
 const Store = sequelize.define("Store", {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     store_name: { type: DataTypes.STRING, allowNull: false },
+    area: {
+        type: DataTypes.STRING,
+        allowNull: true, // Ya false agar har store ka area lazmi chahiye
+    },
     city_id: { type: DataTypes.INTEGER, allowNull: false },
     region_id: { type: DataTypes.INTEGER, allowNull: false },
     ba_user_id: { type: DataTypes.INTEGER, allowNull: true },

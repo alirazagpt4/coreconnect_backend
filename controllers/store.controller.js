@@ -3,14 +3,14 @@ import { Op } from "sequelize";
 
 // 1. Create New Store
 export const createStore = async (req, res) => {
-    const { store_name, city_id, region_id, ba_user_id, targets, poc, store_manager_name } = req.body;
+    const { store_name, area, city_id, region_id, ba_user_id, targets, poc, store_manager_name } = req.body;
     try {
         if (!store_name || !city_id || !region_id) {
             return res.status(400).json({ message: "Store Name, City and Region are required!" });
         }
 
         const store = await Store.create({
-            store_name, city_id, region_id, ba_user_id, targets, poc, store_manager_name
+            store_name, area, city_id, region_id, ba_user_id, targets, poc, store_manager_name
         });
 
         res.status(201).json({ message: "Store Created Successfully", store });
@@ -61,7 +61,7 @@ export const updateStore = async (req, res) => {
         if (!store) return res.status(404).json({ message: "Store not found!" });
 
         await store.update(req.body);
-        
+
         // Refresh data with associations for response
         await store.reload({
             include: [

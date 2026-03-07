@@ -14,6 +14,7 @@ import categoryRoutes from "./routes/category.routes.js";
 import subCategoryRoutes from "./routes/subCategory.routes.js";
 import itemRoutes from "./routes/item.routes.js";
 import saleRoutes from "./routes/sale.routes.js"
+import reportRoutes from "./routes/report.routes.js"
 import path from 'path';
 
 import { fileURLToPath } from 'url';
@@ -45,6 +46,8 @@ app.use("/api/category", categoryRoutes);
 app.use("/api/subCategory", subCategoryRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/sales", saleRoutes);
+app.use("/api/reports" , reportRoutes);
+
 
 
 

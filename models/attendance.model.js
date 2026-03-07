@@ -37,8 +37,8 @@ const Attendance = sequelize.define('Attendance', {
         defaultValue: false
     },
     status: {
-        type: DataTypes.ENUM('start', 'end'), // Takay pata chalay din shuru hua ya khatam
-        defaultValue: 'start'
+        type: DataTypes.ENUM('absent', 'present'), // Takay pata chalay din shuru hua ya khatam
+        defaultValue: 'present'
     }
 }, {
     freezeTableName: true,
