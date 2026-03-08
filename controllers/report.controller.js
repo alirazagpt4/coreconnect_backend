@@ -5,7 +5,7 @@ import { Op } from "sequelize";
 
 export const getAttendanceReport = async (req, res) => {
     try {
-        const { fromDate, toDate, city_id, store_id, status } = req.query;
+        const { fromDate, toDate, city_id, store_id, status, ba_id } = req.query;
         const host = "62.171.183.182";
 
         let whereClause = {};
@@ -15,6 +15,11 @@ export const getAttendanceReport = async (req, res) => {
             whereClause.createdAt = {
                 [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
             };
+        }
+
+        // ba filter
+        if (ba_id && ba_id !== "") {
+            whereClause.user_id = ba_id;
         }
 
         // 2. Status Filter: Database ke 'status' column ko use karna zyada fast hai
@@ -162,6 +167,7 @@ export const getSalesReport = async (req, res) => {
                 subCat: subcategory.subcategory_name || 'N/A',
                 item: product.product_name || 'N/A',
                 qty: val.quantity,
+                price: val.price,
                 amount: val.subtotal
             };
         });
@@ -183,7 +189,7 @@ export const generateSaleExecutiveReport = async (req, res) => {
         // 1. Hierarchy Logic
         // Agar query mein ba_id di hai toh wo, warna loggedInUserId
         let targetUserIds = [];
-        
+
         if (ba_id) {
             targetUserIds = [ba_id];
         } else {
@@ -239,7 +245,7 @@ export const generateSaleExecutiveReport = async (req, res) => {
         attendances.forEach(att => {
             const dateKey = new Date(att.createdAt).toLocaleDateString('en-GB');
             if (!combinedReport[dateKey]) combinedReport[dateKey] = { date: dateKey, attendance: null, sales: [] };
-            
+
             combinedReport[dateKey].attendance = {
                 time: att.mobile_time || 'N/A',
                 status: att.status === 'present' ? 'Present' : (att.isLeave ? 'On Leave' : 'Absent'),
@@ -315,8 +321,8 @@ export const getAttendanceReportMobile = async (req, res) => {
         const data = await Attendance.findAll({
             where: whereClause,
             include: [
-                { 
-                    model: User, as: 'user', 
+                {
+                    model: User, as: 'user',
                     attributes: ['fullname', 'name'],
                     include: [{ model: Store, as: 'assigned_stores', attributes: ['store_name'] }]
                 }
