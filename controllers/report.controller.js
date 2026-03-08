@@ -279,3 +279,127 @@ export const generateSaleExecutiveReport = async (req, res) => {
         res.status(500).json({ success: false, message: "Report generation failed: " + err.message });
     }
 };
+
+
+export const getAttendanceReportMobile = async (req, res) => {
+    try {
+        const { fromDate, toDate, ba_id, status } = req.query;
+        const loggedInUserId = req.user.id;
+
+        // 1. Hierarchy Logic (Same as Executive)
+        let targetUserIds = [];
+        if (ba_id) {
+            targetUserIds = [ba_id];
+        } else {
+            const subordinates = await User.findAll({
+                where: { reportTo: loggedInUserId },
+                attributes: ['id']
+            });
+            targetUserIds = subordinates.length > 0 ? subordinates.map(s => s.id) : [loggedInUserId];
+        }
+
+        // 2. Filters
+        let whereClause = {
+            user_id: { [Op.in]: targetUserIds }
+        };
+
+        if (fromDate && toDate) {
+            whereClause.createdAt = { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] };
+        }
+
+        // Status Filter: present, absent, or leave
+        if (status) {
+            whereClause.status = status;
+        }
+
+        const data = await Attendance.findAll({
+            where: whereClause,
+            include: [
+                { 
+                    model: User, as: 'user', 
+                    attributes: ['fullname', 'name'],
+                    include: [{ model: Store, as: 'assigned_stores', attributes: ['store_name'] }]
+                }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+
+        const report = data.map(val => ({
+            id: val.id,
+            date: new Date(val.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+            time: val.mobile_time || 'N/A',
+            baName: val.user?.fullname || val.user?.name || 'Unknown',
+            storeName: val.user?.assigned_stores?.[0]?.store_name || 'Not Assigned',
+            status: val.status.charAt(0).toUpperCase() + val.status.slice(1), // Capitalize
+            image: val.image_uri ? `http://62.171.183.182${val.image_uri}` : null
+        }));
+
+        res.json({ success: true, count: report.length, data: report });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Attendance Report Error: " + err.message });
+    }
+};
+
+
+
+export const getSalesReportMobile = async (req, res) => {
+    try {
+        const { fromDate, toDate, ba_id } = req.query;
+        const loggedInUserId = req.user.id;
+
+        // 1. Hierarchy Logic
+        let targetUserIds = [];
+        if (ba_id) {
+            targetUserIds = [ba_id];
+        } else {
+            const subordinates = await User.findAll({
+                where: { reportTo: loggedInUserId },
+                attributes: ['id']
+            });
+            targetUserIds = subordinates.length > 0 ? subordinates.map(s => s.id) : [loggedInUserId];
+        }
+
+        // 2. Sale Header Filters
+        let saleWhere = {
+            ba_user_id: { [Op.in]: targetUserIds }
+        };
+
+        if (fromDate && toDate) {
+            saleWhere.sale_date = { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] };
+        }
+
+        // 3. Query SaleItem directly for detailed view
+        const data = await SaleItem.findAll({
+            include: [
+                {
+                    model: Sale, as: 'sale_header',
+                    where: saleWhere,
+                    required: true,
+                    include: [
+                        { model: Store, as: 'store', attributes: ['store_name'] },
+                        { model: User, as: 'beauty_advisor', attributes: ['fullname', 'name'] }
+                    ]
+                },
+                { model: ItemMaster, as: 'product', attributes: ['product_name'] }
+            ],
+            order: [[{ model: Sale, as: 'sale_header' }, 'sale_date', 'DESC']]
+        });
+
+        const report = data.map(val => ({
+            id: val.id,
+            date: new Date(val.sale_header.sale_date).toLocaleDateString('en-GB'),
+            baName: val.sale_header.beauty_advisor?.fullname || val.sale_header.beauty_advisor?.name,
+            storeName: val.sale_header.store?.store_name,
+            product: val.product?.product_name,
+            qty: val.quantity,
+            price: val.price,
+            subtotal: val.subtotal
+        }));
+
+        res.json({ success: true, count: report.length, data: report });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Sales Report Error: " + err.message });
+    }
+};
