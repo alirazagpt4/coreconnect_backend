@@ -116,70 +116,78 @@ export const getSalesReport = async (req, res) => {
         const data = await SaleItem.findAll({
             include: [
                 {
-                    // 🎯 Alias 'sale_header' jo aapki associations mein hai
-                    model: Sale, as: 'sale_header',
-                    where: saleWhere,
-                    required: true,
+                    model: Sale, as: 'sale_header', where: saleWhere, required: true,
                     include: [
-                        {
-                            model: Store, as: 'store',
-                            where: storeWhere,
-                            include: [{ model: City, as: 'city', attributes: ['name'] }]
-                        },
-                        {
-                            // 🎯 Alias 'beauty_advisor' jo aapki associations mein hai
-                            model: User, as: 'beauty_advisor',
-                            attributes: ['fullname', 'name']
-                        }
+                        { model: Store, as: 'store', where: storeWhere, include: [{ model: City, as: 'city' }] },
+                        { model: User, as: 'beauty_advisor', attributes: ['fullname'] }
                     ]
                 },
                 {
-                    // 🎯 Alias 'product' jo aapki associations mein hai
-                    model: ItemMaster, as: 'product',
-                    where: itemWhere,
-                    required: true,
-                    include: [
-                        { model: Category, as: 'category', attributes: ['category_name'] },
-                        { model: SubCategory, as: 'subcategory', attributes: ['subcategory_name'] }
-                    ]
+                    model: ItemMaster, as: 'product', where: itemWhere, required: true,
+                    include: [{ model: Category, as: 'category' }, { model: SubCategory, as: 'subcategory' }]
                 }
             ],
-            order: [[{ model: Sale, as: 'sale_header' }, 'sale_date', 'ASC']]
+            order: [[{ model: Sale, as: 'sale_header' }, 'id', 'ASC']]
         });
 
-        const report = data.map(val => {
-            const sale = val.sale_header || {};
-            const store = sale.store || {};
-            const ba = sale.beauty_advisor || {};
-            const product = val.product || {};
-            const category = product.category || {};
-            const subcategory = product.subcategory || {};
+        // 1. Grouping by Transaction
+        const groupedData = {};
+        let grandQty = 0;
+        let grandAmount = 0;
 
-            return {
-                date: sale.sale_date ? new Date(sale.sale_date).toLocaleDateString('en-GB', {
-                    day: 'numeric', month: 'short', year: '2-digit'
-                }) : 'N/A',
-                city: store.city?.name || 'N/A',
-                area: store.area || 'N/A',
-                storeName: store.store_name || 'N/A',
-                baName: ba.fullname || ba.name || 'N/A',
-                cat: category.category_name || 'N/A',
-                subCat: subcategory.subcategory_name || 'N/A',
-                item: product.product_name || 'N/A',
-                qty: val.quantity,
-                price: val.price,
-                amount: val.subtotal
-            };
+        data.forEach(item => {
+            const sId = item.sale_header.id;
+
+            if (!groupedData[sId]) {
+                groupedData[sId] = {
+                    saleId: sId,
+                    date: new Date(item.sale_header.sale_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }),
+                    store: item.sale_header.store?.store_name || 'N/A',
+                    city: item.sale_header.store?.city?.name || 'N/A',
+                    baName: item.sale_header.beauty_advisor?.fullname || 'N/A',
+                    items: [],
+                    subTotalQty: 0,
+                    subTotalAmount: 0
+                };
+            }
+
+            const q = Number(item.quantity) || 0;
+            const a = Number(item.subtotal) || 0;
+
+            groupedData[sId].items.push({
+                cat: item.product?.category?.category_name,
+                subCat: item.product?.subcategory?.subcategory_name,
+                itemName: item.product?.product_name,
+                rp: item.price,
+                qty: q,
+                value: a
+            });
+
+            // Update Sub-totals for this transaction
+            groupedData[sId].subTotalQty += q;
+            groupedData[sId].subTotalAmount += a;
+
+            // Update Grand totals for the whole report
+            grandQty += q;
+            grandAmount += a;
         });
 
-        res.json({ success: true, count: report.length, data: report });
+        const finalTransactions = Object.values(groupedData);
+
+        res.json({
+            success: true,
+            summary: {
+                totalTransactions: finalTransactions.length, // Count of distinct sales
+                grandTotalQty: grandQty,
+                grandTotalAmount: grandAmount.toFixed(2)
+            },
+            data: finalTransactions
+        });
 
     } catch (err) {
-        console.error("Sales Report Error:", err);
-        res.status(500).json({ success: false, message: "Server Error: " + err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
-
 
 export const generateSaleExecutiveReport = async (req, res) => {
     try {

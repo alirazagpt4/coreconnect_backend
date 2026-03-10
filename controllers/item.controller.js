@@ -45,7 +45,7 @@ export const getAllItems = async (req, res) => {
                 { model: Category, as: 'category', attributes: ['category_name'] },
                 { model: SubCategory, as: 'subcategory', attributes: ['subcategory_name'] }
             ],
-            order: [['createdAt', 'DESC']]
+            order: [['createdAt']]
         });
 
         res.status(200).json({
