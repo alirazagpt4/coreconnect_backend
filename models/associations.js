@@ -11,6 +11,7 @@ import Sale from './sale.model.js';
 import SaleItem from './saleItems.model.js';
 import ShortItem from './shortItem.model.js';
 import ShortItemDetail from './shortItemDetail.model.js';
+import Interception from './interception.model.js';
 
 
 // Relationships
@@ -79,8 +80,20 @@ ItemMaster.hasMany(SaleItem, { foreignKey: 'item_id', as: 'sold_items' })
 ShortItem.hasMany(ShortItemDetail, { foreignKey: 'short_item_id', as: 'details' });
 ShortItemDetail.belongsTo(ShortItem, { foreignKey: 'short_item_id' });
 
+// Yeh missing associations add karein:
+ShortItem.belongsTo(Store, { foreignKey: 'store_id', as: 'store' }); // Store ke saath link
+ShortItem.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' }); // BA ke saath link
+
 // Item Master ke saath link
 ShortItemDetail.belongsTo(ItemMaster, { foreignKey: 'item_id', as: 'itemInfo' });
 
 
-export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail };
+Interception.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
+User.hasMany(Interception, { foreignKey: 'ba_user_id', as: 'interceptions' });
+
+// Ek interception record ek hi Store ka hota hai
+Interception.belongsTo(Store, { foreignKey: 'store_id', as: 'store' });
+Store.hasMany(Interception, { foreignKey: 'store_id', as: 'interceptions' });
+
+
+export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception };

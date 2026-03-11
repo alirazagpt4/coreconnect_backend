@@ -1,6 +1,6 @@
 
 
-import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City } from "../models/associations.js";
+import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail } from "../models/associations.js";
 import { Op } from "sequelize";
 
 export const getAttendanceReport = async (req, res) => {
@@ -415,5 +415,80 @@ export const getSalesReportMobile = async (req, res) => {
 
     } catch (err) {
         res.status(500).json({ success: false, message: "Sales Report Error: " + err.message });
+    }
+};
+
+
+export const getShortItemsReport = async (req, res) => {
+    try {
+        const { store_id, ba_user_id, fromDate, toDate, category_id, subcategory_id, city_id, item_id } = req.query;
+
+        let whereClause = {};
+        if (store_id) whereClause.store_id = store_id;
+        if (ba_user_id) whereClause.ba_user_id = ba_user_id;
+        if (fromDate && toDate) {
+            whereClause.report_date = { [Op.between]: [fromDate, toDate] };
+        }
+
+        let storeWhere = {};
+        if (city_id) storeWhere.city_id = city_id;
+
+        // Item level filters (ID filter yahan add kiya hai)
+        let itemWhere = {};
+        if (item_id) itemWhere.id = item_id;
+        if (category_id) itemWhere.category_id = category_id;
+        if (subcategory_id) itemWhere.subcategory_id = subcategory_id;
+
+        const reports = await ShortItem.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Store,
+                    as: 'store',
+                    where: storeWhere,
+                    attributes: ['store_name'],
+                    include: [{ model: City, as: 'city', attributes: ['name'] }]
+                },
+                { model: User, as: 'beauty_advisor', attributes: ['fullname'] },
+                {
+                    model: ShortItemDetail,
+                    as: 'details',
+                    // Agar item, category ya subcategory filter hai toh required true hoga
+                    required: (category_id || subcategory_id || item_id) ? true : false,
+                    include: [{
+                        model: ItemMaster,
+                        as: 'itemInfo',
+                        where: Object.keys(itemWhere).length > 0 ? itemWhere : null,
+                        attributes: ['product_name'],
+                        include: [
+                            { model: Category, as: 'category', attributes: ['category_name'] },
+                            { model: SubCategory, as: 'subcategory', attributes: ['subcategory_name'] }
+                        ]
+                    }]
+                }
+            ],
+            order: [['report_date', 'DESC']]
+        });
+
+        const formattedData = [];
+        reports.forEach(r => {
+            r.details.forEach(d => {
+                formattedData.push({
+                    id: r.id,
+                    date: r.report_date,
+                    cityName: r.store?.city?.name || 'N/A',
+                    storeName: r.store?.store_name || 'N/A',
+                    baName: r.beauty_advisor?.fullname || 'N/A',
+                    categoryName: d.itemInfo?.category?.category_name || 'N/A',
+                    subCategoryName: d.itemInfo?.subcategory?.subcategory_name || 'N/A',
+                    itemName: d.itemInfo?.product_name || 'N/A'
+                });
+            });
+        });
+
+        res.status(200).json({ success: true, data: formattedData });
+    } catch (error) {
+        console.error("API Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
