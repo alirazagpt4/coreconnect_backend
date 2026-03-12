@@ -14,6 +14,11 @@ const Category = sequelize.define("Category", {
         validate: {
             notEmpty: true
         }
+    },
+    is_active: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
     }
 }, {
     timestamps: true,

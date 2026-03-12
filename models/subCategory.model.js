@@ -23,6 +23,11 @@ const SubCategory = sequelize.define("SubCategory", {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
+    },
+    is_active: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
     }
 }, {
     timestamps: true,

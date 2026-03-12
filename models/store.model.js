@@ -14,6 +14,11 @@ const Store = sequelize.define("Store", {
     targets: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 },
     poc: { type: DataTypes.STRING, allowNull: true },
     store_manager_name: { type: DataTypes.STRING, allowNull: true },
+    is_active: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
+    }
 }, { timestamps: true, tableName: 'Stores' });
 
 export default Store;

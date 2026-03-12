@@ -55,7 +55,12 @@ const User = sequelize.define('User', {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: { model: 'User', key: 'id' } // Yahan 'User' hi rakhein agar freezeTableName true hai
-    }
+    },
+    is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+    allowNull: false
+}
 }, {
     freezeTableName: true, // Taake table ka naam 'User' hi rahe
     timestamps: true,

@@ -39,6 +39,11 @@ const ItemMaster = sequelize.define("ItemMaster", {
     price_after_discount: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: true
+    },
+    is_active: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
     }
 }, {
     timestamps: true,

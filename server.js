@@ -17,6 +17,7 @@ import saleRoutes from "./routes/sale.routes.js";
 import shortItemRoutes from "./routes/shortItem.routes.js";
 import reportRoutes from "./routes/report.routes.js"
 import interceptionRoutes from "./routes/interceptions.routes.js";
+import statusRoutes from "./routes/store.routes.js"
 import path from 'path';
 
 import { fileURLToPath } from 'url';
@@ -50,6 +51,7 @@ app.use("/api/items", itemRoutes);
 app.use("/api/sales", saleRoutes);
 app.use("/api/shortitems", shortItemRoutes);
 app.use("/api/interceptions" , interceptionRoutes);
+app.use("/api/status" , statusRoutes);
 app.use("/api/reports", reportRoutes);
 
 
