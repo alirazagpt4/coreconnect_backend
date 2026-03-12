@@ -9,20 +9,14 @@ export const getAttendanceReport = async (req, res) => {
         const host = "62.171.183.182";
 
         let whereClause = {};
-
-        // 1. Date Range Filter (Cleaned up)
         if (fromDate && toDate) {
             whereClause.createdAt = {
                 [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
             };
         }
-
-        // ba filter
         if (ba_id && ba_id !== "") {
             whereClause.user_id = ba_id;
         }
-
-        // 2. Status Filter: Database ke 'status' column ko use karna zyada fast hai
         if (status === 'present' || status === 'absent') {
             whereClause.status = status;
         }
@@ -46,16 +40,21 @@ export const getAttendanceReport = async (req, res) => {
                     ]
                 }
             ],
-            order: [['createdAt', 'DESC']] // Latest attendance pehle dikhayein
+            order: [['createdAt', 'DESC']]
         });
 
-        // 3. Mapping Logic with Fixes
+        // --- Summary Calculation (Naya Logic) ---
+        let totalCount = data.length;
+        let presentCount = 0;
+        let absentCount = 0;
+
         const report = data.map(val => {
             const store = val.user?.assigned_stores?.[0] || {};
-            console.log("store details of user ", store);
-
-            // isLeave ko boolean ki tarah handle karna best hai
             const isOnLeave = val.isLeave === true || val.isLeave === 1 || val.status === 'absent';
+
+            // Counts update karein
+            if (isOnLeave) { absentCount++; }
+            else { presentCount++; }
 
             return {
                 id: val.id,
@@ -68,20 +67,26 @@ export const getAttendanceReport = async (req, res) => {
                 storeID: store.id,
                 storeName: store.store_name || 'Not Assigned',
                 baName: val.user?.fullname || val.user?.name || 'Unknown',
-
-                // Final Status logic
                 attendance: isOnLeave ? 'Absent' : 'Present',
-
-                // Image URL fix
                 picture: val.image_uri ? `http://${host}${val.image_uri}` : null,
-
-                // Google Maps Link (Correct format: q=lat,lng)
-                location: val.latitude ? `https://www.google.com/maps?q=${val.latitude},${val.longitude}` : 'No GPS'
+                location: val.latitude ? `http://maps.google.com/?q=${val.latitude},${val.longitude}` : 'No GPS'
             };
         });
 
+        // Percentages nikalna (Divide by zero check ke saath)
+        const presentPer = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) : 0;
+        const absentPer = totalCount > 0 ? ((absentCount / totalCount) * 100).toFixed(1) : 0;
+
+        // Final Response mein summary add kar di
         res.json({
             success: true,
+            summary: {
+                total: totalCount,
+                present: presentCount,
+                absent: absentCount,
+                presentPercentage: `${presentPer}%`,
+                absentPercentage: `${absentPer}%`
+            },
             count: report.length,
             data: report
         });
@@ -446,7 +451,7 @@ export const getShortItemsReport = async (req, res) => {
                     model: Store,
                     as: 'store',
                     where: storeWhere,
-                    attributes: ['store_name'],
+                    attributes: ['store_name', 'area'],
                     include: [{ model: City, as: 'city', attributes: ['name'] }]
                 },
                 { model: User, as: 'beauty_advisor', attributes: ['fullname'] },
@@ -477,6 +482,7 @@ export const getShortItemsReport = async (req, res) => {
                     id: r.id,
                     date: r.report_date,
                     cityName: r.store?.city?.name || 'N/A',
+                    areaName: r.store?.area || 'N/A',
                     storeName: r.store?.store_name || 'N/A',
                     baName: r.beauty_advisor?.fullname || 'N/A',
                     categoryName: d.itemInfo?.category?.category_name || 'N/A',

@@ -19,22 +19,36 @@ export const createItem = async (req, res) => {
 // --- 2. GET ALL ITEMS (With Search & Pagination) ---
 export const getAllItems = async (req, res) => {
     try {
-        let { page, limit, search } = req.query;
+        let { page, limit, search, category_id, subcategory_id, item_id } = req.query;
 
-        // Defaults: Page 1 aur 10 items per page
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const offset = (page - 1) * limit;
 
-        // Search Filter: Name ya Code mein match kare
+        // Base where object
         let whereCondition = {};
+
+        // 1. Search Filter (Product Name ya Item Code par)
         if (search) {
-            whereCondition = {
-                [Op.or]: [
-                    { product_name: { [Op.like]: `%${search}%` } },
-                    { item_code: { [Op.like]: `%${search}%` } }
-                ]
-            };
+            whereCondition[Op.or] = [
+                { product_name: { [Op.like]: `%${search}%` } },
+                { item_code: { [Op.like]: `%${search}%` } }
+            ];
+        }
+
+        // 2. Category Filter
+        if (category_id) {
+            whereCondition.category_id = category_id;
+        }
+
+        // 3. SubCategory Filter
+        if (subcategory_id) {
+            whereCondition.subcategory_id = subcategory_id;
+        }
+
+        // 4. Specific Item Filter (Table ki primary 'id' column)
+        if (item_id) {
+            whereCondition.id = item_id;
         }
 
         const { count, rows } = await ItemMaster.findAndCountAll({
@@ -45,7 +59,7 @@ export const getAllItems = async (req, res) => {
                 { model: Category, as: 'category', attributes: ['category_name'] },
                 { model: SubCategory, as: 'subcategory', attributes: ['subcategory_name'] }
             ],
-            order: [['createdAt']]
+            order: [['id', 'ASC']] // Image ke mutabiq ID wise sorting sahi rahegi
         });
 
         res.status(200).json({
@@ -54,7 +68,9 @@ export const getAllItems = async (req, res) => {
             currentPage: page,
             items: rows
         });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
 
 
