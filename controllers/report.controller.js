@@ -1,6 +1,6 @@
 
 
-import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail } from "../models/associations.js";
+import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail, Interception } from "../models/associations.js";
 import { Op } from "sequelize";
 
 export const getAttendanceReport = async (req, res) => {
@@ -496,5 +496,66 @@ export const getShortItemsReport = async (req, res) => {
     } catch (error) {
         console.error("API Error:", error);
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+
+export const interceptionReport = async (req, res) => {
+    try {
+        // Front-end se city_id aur store_id bhi query params mein aayenge
+        const { fromDate, toDate, ba_user_id, city_id, store_id } = req.query;
+
+        if (!fromDate || !toDate) {
+            return res.status(400).json({ error: "Date range is required." });
+        }
+
+        // 1. Base Filter (Interception Table)
+        const whereClause = {
+            report_date: { [Op.between]: [fromDate, toDate] }
+        };
+
+        if (ba_user_id) whereClause.ba_user_id = ba_user_id;
+
+        // Agar Direct Store ID aayi hai toh isi table par filter lag jayega
+        if (store_id) whereClause.store_id = store_id;
+
+        // 2. Execution with Nested Joins
+        const reports = await Interception.findAll({
+            where: whereClause,
+            attributes: ['report_date', 'intercepted', 'converted', 'ratio'],
+            include: [
+                {
+                    model: Store,
+                    as: 'store',
+                    attributes: ['store_name'],
+                    // Agar city_id filter lagana hai toh humein Store ke andar filter karna hoga
+                    where: city_id ? { city_id: city_id } : {},
+                    required: true, // Yeh 'INNER JOIN' banayega, taake sirf wahi records aayein jo city match karein
+                    include: [
+                        {
+                            model: City, // Agar city name bhi display karwana hai front-end par
+                            as: 'city',
+                            attributes: ['name']
+                        }
+                    ]
+                },
+                {
+                    model: User,
+                    as: 'beauty_advisor',
+                    attributes: ['name'],
+                }
+            ],
+            order: [['report_date', 'ASC']]
+        });
+
+        return res.status(200).json({
+            success: true,
+            count: reports.length,
+            data: reports
+        });
+
+    } catch (error) {
+        console.error("Report Error:", error);
+        return res.status(500).json({ error: "Internal Server Error." });
     }
 };

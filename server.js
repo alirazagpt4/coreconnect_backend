@@ -15,11 +15,11 @@ import subCategoryRoutes from "./routes/subCategory.routes.js";
 import itemRoutes from "./routes/item.routes.js";
 import saleRoutes from "./routes/sale.routes.js";
 import shortItemRoutes from "./routes/shortItem.routes.js";
-import reportRoutes from "./routes/report.routes.js"
 import interceptionRoutes from "./routes/interceptions.routes.js";
-import statusRoutes from "./routes/store.routes.js"
-import path from 'path';
+import reportRoutes from "./routes/report.routes.js"
+import statusRoutes from "./routes/status.routes.js"
 
+import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -51,10 +51,8 @@ app.use("/api/items", itemRoutes);
 app.use("/api/sales", saleRoutes);
 app.use("/api/shortitems", shortItemRoutes);
 app.use("/api/interceptions" , interceptionRoutes);
+app.use("/api/reports" , reportRoutes);
 app.use("/api/status" , statusRoutes);
-app.use("/api/reports", reportRoutes);
-
-
 
 
 app.get("/api", (req, res) => {
@@ -64,12 +62,9 @@ app.get("/api", (req, res) => {
 });
 
 
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
-
-
-
 
 const startServer = async () => {
     try {
