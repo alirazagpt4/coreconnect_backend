@@ -47,8 +47,9 @@ const User = sequelize.define('User', {
         allowNull: true,
         references: { model: 'Designation', key: 'id' }
     },
+    // Role ENUM ko update kiya
     role: {
-        type: DataTypes.ENUM('user', 'admin', 'supervisor'),
+        type: DataTypes.ENUM('admin', 'user', 'supervisor', 'brandadmin', 'ccadmin'),
         defaultValue: 'user'
     },
     reportTo: {
@@ -57,10 +58,10 @@ const User = sequelize.define('User', {
         references: { model: 'User', key: 'id' } // Yahan 'User' hi rakhein agar freezeTableName true hai
     },
     is_active: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    allowNull: false
-}
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
+    }
 }, {
     freezeTableName: true, // Taake table ka naam 'User' hi rahe
     timestamps: true,

@@ -132,7 +132,7 @@ export const getSalesReport = async (req, res) => {
                     include: [{ model: Category, as: 'category' }, { model: SubCategory, as: 'subcategory' }]
                 }
             ],
-            order: [[{ model: Sale, as: 'sale_header' }, 'id', 'ASC']]
+            order: [[{ model: Sale, as: 'sale_header' }, 'id', 'DESC']]
         });
 
         // 1. Grouping by Transaction
@@ -177,7 +177,11 @@ export const getSalesReport = async (req, res) => {
             grandAmount += a;
         });
 
+        // 1. Pehle values nikaalein
         const finalTransactions = Object.values(groupedData);
+
+        // 2. Phir unhein manually sort karein (Sale ID ke mutabiq DESC)
+        finalTransactions.sort((a, b) => b.saleId - a.saleId);
 
         res.json({
             success: true,
@@ -545,12 +549,24 @@ export const interceptionReport = async (req, res) => {
                     attributes: ['name'],
                 }
             ],
-            order: [['report_date', 'ASC']]
+            order: [['report_date', 'DESC']]
         });
+
+        const summary = reports.reduce((acc, curr) => {
+            acc.totalInterceptions += (Number(curr.intercepted) || 0);
+            acc.totalConversions += (Number(curr.converted) || 0);
+            return acc;
+        }, { totalInterceptions: 0, totalConversions: 0 });
+
+        // Overall Ratio calculate karo (Avoid division by zero!)
+        summary.overallRatio = summary.totalInterceptions > 0
+            ? ((summary.totalConversions / summary.totalInterceptions) * 100).toFixed(2)
+            : "0.00";
 
         return res.status(200).json({
             success: true,
             count: reports.length,
+            summary: summary,
             data: reports
         });
 
