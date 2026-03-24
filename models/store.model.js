@@ -1,5 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
+import Channel from "./channel.model.js";
 
 const Store = sequelize.define("Store", {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
@@ -7,6 +8,15 @@ const Store = sequelize.define("Store", {
     area: {
         type: DataTypes.STRING,
         allowNull: true, // Ya false agar har store ka area lazmi chahiye
+    },
+    // Nayi Field: Channel Linking
+    channel_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'Channels',
+            key: 'id'
+        }
     },
     city_id: { type: DataTypes.INTEGER, allowNull: false },
     region_id: { type: DataTypes.INTEGER, allowNull: false },

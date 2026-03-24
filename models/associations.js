@@ -12,6 +12,7 @@ import SaleItem from './saleItems.model.js';
 import ShortItem from './shortItem.model.js';
 import ShortItemDetail from './shortItemDetail.model.js';
 import Interception from './interception.model.js';
+import Channel from './channel.model.js';
 
 
 // Relationships
@@ -96,4 +97,11 @@ Interception.belongsTo(Store, { foreignKey: 'store_id', as: 'store' });
 Store.hasMany(Interception, { foreignKey: 'store_id', as: 'interceptions' });
 
 
-export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception };
+// Ek Store (Branch) ek hi Channel (Brand) ka hissa hota hai
+Store.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
+
+// Ek Channel (e.g., Al-Fatah) ke Pakistan mein bohat saare Stores ho sakte hain
+Channel.hasMany(Store, { foreignKey: 'channel_id', as: 'stores' });
+
+
+export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception, Channel };

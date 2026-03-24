@@ -1,11 +1,11 @@
 
 
-import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail, Interception } from "../models/associations.js";
+import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail, Interception, Channel } from "../models/associations.js";
 import { Op } from "sequelize";
 
 export const getAttendanceReport = async (req, res) => {
     try {
-        const { fromDate, toDate, city_id, store_id, status, ba_id } = req.query;
+        const { fromDate, toDate, city_id, store_id, status, ba_id, channel_id, } = req.query;
         const host = "62.171.183.182";
 
         let whereClause = {};
@@ -30,12 +30,20 @@ export const getAttendanceReport = async (req, res) => {
                     where: city_id ? { city_id } : {},
                     include: [
                         { model: City, as: 'city', attributes: ['name'] },
+                        // Include section mein:
                         {
                             model: Store,
                             as: 'assigned_stores',
-                            attributes: ['store_name', 'area'],
-                            where: store_id ? { id: store_id } : {},
-                            required: store_id ? true : false
+                            where: {
+                                ...(store_id ? { id: store_id } : {}),
+                                ...(channel_id ? { channel_id } : {}) // 2. Inject Filter
+                            },
+                            required: (store_id || channel_id) ? true : false,
+                            include: [
+                                // 👈 Yeh missing tha. Iske baghair channel ka naam nahi aayega.
+                                { model: Channel, as: 'channel', attributes: ['name'] }
+                            ]
+
                         }
                     ]
                 }
@@ -50,6 +58,7 @@ export const getAttendanceReport = async (req, res) => {
 
         const report = data.map(val => {
             const store = val.user?.assigned_stores?.[0] || {};
+            const channelName = store.channel?.name || 'N/A'; //
             const isOnLeave = val.isLeave === true || val.isLeave === 1 || val.status === 'absent';
 
             // Counts update karein
@@ -63,6 +72,7 @@ export const getAttendanceReport = async (req, res) => {
                 }),
                 time: val.mobile_time || 'N/A',
                 city: val.user?.city?.name || 'N/A',
+                channelName: channelName, //
                 area: store.area || 'General',
                 storeID: store.id,
                 storeName: store.store_name || 'Not Assigned',
@@ -100,7 +110,7 @@ export const getAttendanceReport = async (req, res) => {
 
 export const getSalesReport = async (req, res) => {
     try {
-        const { fromDate, toDate, city_id, store_id, ba_id, cat_id, subcat_id, item_id } = req.query;
+        const { fromDate, toDate, city_id, store_id, ba_id, cat_id, subcat_id, item_id, channel_id } = req.query;
 
         let saleWhere = {};
         let storeWhere = {};
@@ -111,6 +121,7 @@ export const getSalesReport = async (req, res) => {
         }
 
         if (store_id) saleWhere.store_id = store_id;
+        if (channel_id) storeWhere.channel_id = channel_id;
         if (ba_id) saleWhere.ba_user_id = ba_id;
         if (city_id) storeWhere.city_id = city_id;
 
@@ -123,7 +134,14 @@ export const getSalesReport = async (req, res) => {
                 {
                     model: Sale, as: 'sale_header', where: saleWhere, required: true,
                     include: [
-                        { model: Store, as: 'store', where: storeWhere, include: [{ model: City, as: 'city' }] },
+                        {
+                            model: Store, as: 'store', where: storeWhere,
+                            required: (city_id || channel_id) ? true : false,
+                            include: [{ model: City, as: 'city' },
+                            { model: Channel, as: 'channel', attributes: ['name'] }
+                            ]
+                        },
+
                         { model: User, as: 'beauty_advisor', attributes: ['fullname'] }
                     ]
                 },
@@ -144,9 +162,12 @@ export const getSalesReport = async (req, res) => {
             const sId = item.sale_header.id;
 
             if (!groupedData[sId]) {
+                const channelName = item.sale_header.store?.channel?.name || 'N/A';
+
                 groupedData[sId] = {
                     saleId: sId,
                     date: new Date(item.sale_header.sale_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }),
+                    channel: channelName,
                     store: item.sale_header.store?.store_name || 'N/A',
                     city: item.sale_header.store?.city?.name || 'N/A',
                     baName: item.sale_header.beauty_advisor?.fullname || 'N/A',
@@ -430,7 +451,7 @@ export const getSalesReportMobile = async (req, res) => {
 
 export const getShortItemsReport = async (req, res) => {
     try {
-        const { store_id, ba_user_id, fromDate, toDate, category_id, subcategory_id, city_id, item_id } = req.query;
+        const { store_id, ba_user_id, fromDate, toDate, category_id, subcategory_id, city_id, item_id, channel_id } = req.query;
 
         let whereClause = {};
         if (store_id) whereClause.store_id = store_id;
@@ -441,6 +462,7 @@ export const getShortItemsReport = async (req, res) => {
 
         let storeWhere = {};
         if (city_id) storeWhere.city_id = city_id;
+        if (channel_id) storeWhere.channel_id = channel_id;
 
         // Item level filters (ID filter yahan add kiya hai)
         let itemWhere = {};
@@ -456,7 +478,10 @@ export const getShortItemsReport = async (req, res) => {
                     as: 'store',
                     where: storeWhere,
                     attributes: ['store_name', 'area'],
-                    include: [{ model: City, as: 'city', attributes: ['name'] }]
+                    include: [
+                        { model: City, as: 'city', attributes: ['name'] },
+                        { model: Channel, as: 'channel', attributes: ['name'] } // 👈 YEH ADD KAREIN
+                    ]
                 },
                 { model: User, as: 'beauty_advisor', attributes: ['fullname'] },
                 {
@@ -486,6 +511,7 @@ export const getShortItemsReport = async (req, res) => {
                     id: r.id,
                     date: r.report_date,
                     cityName: r.store?.city?.name || 'N/A',
+                    channelName: r.store?.channel?.name || 'N/A',
                     areaName: r.store?.area || 'N/A',
                     storeName: r.store?.store_name || 'N/A',
                     baName: r.beauty_advisor?.fullname || 'N/A',
@@ -507,7 +533,7 @@ export const getShortItemsReport = async (req, res) => {
 export const interceptionReport = async (req, res) => {
     try {
         // Front-end se city_id aur store_id bhi query params mein aayenge
-        const { fromDate, toDate, ba_user_id, city_id, store_id } = req.query;
+        const { fromDate, toDate, ba_user_id, city_id, store_id, channel_id } = req.query;
 
         if (!fromDate || !toDate) {
             return res.status(400).json({ error: "Date range is required." });
@@ -533,13 +559,21 @@ export const interceptionReport = async (req, res) => {
                     as: 'store',
                     attributes: ['store_name'],
                     // Agar city_id filter lagana hai toh humein Store ke andar filter karna hoga
-                    where: city_id ? { city_id: city_id } : {},
+                    where: {
+                        ...(city_id ? { city_id: city_id } : {}),
+                        ...(channel_id ? { channel_id: channel_id } : {}) // <-- Yeh add karein
+                    },
                     required: true, // Yeh 'INNER JOIN' banayega, taake sirf wahi records aayein jo city match karein
                     include: [
                         {
                             model: City, // Agar city name bhi display karwana hai front-end par
                             as: 'city',
                             attributes: ['name']
+                        },
+                        {
+                            model: Channel, // 👈 Channel model include karein
+                            as: 'channel',
+                            attributes: ['name'] // 👈 Kyunke aapne kaha sirf "name" hai
                         }
                     ]
                 },

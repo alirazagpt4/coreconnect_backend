@@ -6,6 +6,7 @@ import sequelize from "./config/db.js";
 import "./models/associations.js";
 import userRoutes from "./routes/user.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
+import channelRoutes from "./routes/channel.routes.js"
 import designationRoutes from "./routes/designations.routes.js";
 import cityRoutes from "./routes/cities.routes.js";
 import regionRoutes from "./routes/regions.routes.js"
@@ -44,15 +45,16 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/store", storeRoutes);
 app.use("/api/designations", designationRoutes);
 app.use("/api/cities", cityRoutes);
+app.use("/api/channels", channelRoutes);
 app.use("/api/regions", regionRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/api/subCategory", subCategoryRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/sales", saleRoutes);
 app.use("/api/shortitems", shortItemRoutes);
-app.use("/api/interceptions" , interceptionRoutes);
-app.use("/api/reports" , reportRoutes);
-app.use("/api/status" , statusRoutes);
+app.use("/api/interceptions", interceptionRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/status", statusRoutes);
 
 
 app.get("/api", (req, res) => {
