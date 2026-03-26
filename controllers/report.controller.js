@@ -609,3 +609,126 @@ export const interceptionReport = async (req, res) => {
         return res.status(500).json({ error: "Internal Server Error." });
     }
 };
+
+
+export const getSalesSummaryByBrand = async (req, res) => {
+    try {
+        const { fromDate, toDate, city_id, store_id, ba_id, channel_id } = req.query;
+
+        let saleWhere = {};
+        let storeWhere = {};
+
+        // 1. Filter Logic
+        if (fromDate && toDate) {
+            saleWhere.sale_date = { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] };
+        }
+        if (store_id) saleWhere.store_id = store_id;
+        if (ba_id) saleWhere.ba_user_id = ba_id;
+
+        if (city_id) storeWhere.city_id = city_id;
+        if (channel_id) storeWhere.channel_id = channel_id;
+
+        // 2. Database Fetch with Joins
+        const data = await SaleItem.findAll({
+            include: [
+                {
+                    model: Sale,
+                    as: 'sale_header',
+                    where: saleWhere,
+                    required: true,
+                    include: [
+                        {
+                            model: Store,
+                            as: 'store',
+                            where: storeWhere,
+                            required: true,
+                            include: [
+                                { model: City, as: 'city', attributes: ['name'] },
+                                { model: Channel, as: 'channel', attributes: ['name'] }
+                            ]
+                        },
+                        { model: User, as: 'beauty_advisor', attributes: ['fullname', 'name'] }
+                    ]
+                },
+                {
+                    model: ItemMaster,
+                    as: 'product',
+                    required: true,
+                    include: [{ model: Category, as: 'category', attributes: ['category_name'] }]
+                }
+            ],
+            order: [[{ model: Sale, as: 'sale_header' }, 'id', 'DESC']]
+        });
+
+        // 3. Pivoting & Grouping Logic
+        const groupedData = {};
+        
+        // Report Header Totals (For the cards at the top)
+        let reportGrandQty = 0;
+        let reportGrandVal = 0;
+
+        data.forEach(item => {
+            const sId = item.sale_header.id;
+            // Image ke mutabiq categories: AMRIJ, EVERNOYA, NO!MO!, RHD, RIVAJ
+            const catName = item.product?.category?.category_name?.toUpperCase() || "OTHER";
+            
+            if (!groupedData[sId]) {
+                groupedData[sId] = {
+                    saleId: sId,
+                    date: item.sale_header.sale_date,
+                    city: item.sale_header.store?.city?.name || 'N/A',
+                    storeName: item.sale_header.store?.store_name || 'N/A',
+                    baName: item.sale_header.beauty_advisor?.fullname || item.sale_header.beauty_advisor?.name || 'N/A',
+                    channel: item.sale_header.store?.channel?.name || 'N/A',
+                    // Individual Brand Columns
+                    brands: {
+                        "AMRIJ": { qty: 0, val: 0 },
+                        "EVERNOYA": { qty: 0, val: 0 },
+                        "NO!MO!": { qty: 0, val: 0 },
+                        "RHD": { qty: 0, val: 0 },
+                        "RIVAJ": { qty: 0, val: 0 },
+                        "OTHER": { qty: 0, val: 0 }
+                    },
+                    // Row-wise Overall Total (Jo aapne manga hai)
+                    rowTotalQty: 0,
+                    rowTotalVal: 0
+                };
+            }
+
+            const qty = Number(item.quantity) || 0;
+            const val = Number(item.subtotal) || 0;
+
+            // Update Brand specific data
+            if (groupedData[sId].brands[catName]) {
+                groupedData[sId].brands[catName].qty += qty;
+                groupedData[sId].brands[catName].val += val;
+            } else {
+                groupedData[sId].brands["OTHER"].qty += qty;
+                groupedData[sId].brands["OTHER"].val += val;
+            }
+
+            // Update Row Overall
+            groupedData[sId].rowTotalQty += qty;
+            groupedData[sId].rowTotalVal += val;
+
+            // Update Report Grand Totals
+            reportGrandQty += qty;
+            reportGrandVal += val;
+        });
+
+        // Response send karein
+        return res.status(200).json({
+            success: true,
+            summary: {
+                totalTransactions: Object.keys(groupedData).length,
+                grandTotalQty: reportGrandQty,
+                grandTotalVal: reportGrandQty > 0 ? reportGrandVal.toFixed(2) : "0.00"
+            },
+            data: Object.values(groupedData)
+        });
+
+    } catch (err) {
+        console.error("Sales Summary Error:", err);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};

@@ -225,7 +225,7 @@ export const getMyTeam = async (req, res) => {
         });
 
         if (!userWithTeam) {
-            return res.status(404).json({ message: "User nahi mila" });
+            return res.status(404).json({ message: "User not found" });
         }
 
         // Logic: Agar subordinates hian toh wo list bhejo, warna sirf login user ki info
@@ -266,7 +266,7 @@ export const updateUser = async (req, res) => {
     try {
         const user = await User.findByPk(id);
         if (!user) {
-            return res.status(404).json({ message: "User nahi mila!" });
+            return res.status(404).json({ message: "User not found" });
         }
 
         // Agar password update karna hai toh hash karo
