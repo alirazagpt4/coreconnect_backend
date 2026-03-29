@@ -517,7 +517,8 @@ export const getShortItemsReport = async (req, res) => {
                     baName: r.beauty_advisor?.fullname || 'N/A',
                     categoryName: d.itemInfo?.category?.category_name || 'N/A',
                     subCategoryName: d.itemInfo?.subcategory?.subcategory_name || 'N/A',
-                    itemName: d.itemInfo?.product_name || 'N/A'
+                    itemName: d.itemInfo?.product_name || 'N/A',
+                    quantity: d.quantity
                 });
             });
         });
