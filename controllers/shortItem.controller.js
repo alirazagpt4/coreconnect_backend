@@ -25,7 +25,8 @@ export const createShortItemsReport = async (req, res) => {
         // Ismein quantity aur price nahi hai, sirf item_id hai
         const shortItemsPayload = items.map((item) => ({
             short_item_id: shortItemMaster.id,
-            item_id: item.item_id
+            item_id: item.item_id,
+            quantity:item.quantity
         }));
 
         // 3. Bulk Insert in Details Table

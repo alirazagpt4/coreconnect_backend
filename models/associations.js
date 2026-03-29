@@ -13,6 +13,10 @@ import ShortItem from './shortItem.model.js';
 import ShortItemDetail from './shortItemDetail.model.js';
 import Interception from './interception.model.js';
 import Channel from './channel.model.js';
+import ExpiryStock from './expiryStock.model.js';
+import ExpiryStockDetail from './expiryStockDetail.model.js';
+import ShortTester from './shortTesters.model.js';
+import ShortTesterDetail from './shortTesterDetail.model.js';
 
 
 // Relationships
@@ -104,4 +108,24 @@ Store.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
 Channel.hasMany(Store, { foreignKey: 'channel_id', as: 'stores' });
 
 
-export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception, Channel };
+
+// --- ShortTester Associations ---
+ShortTester.hasMany(ShortTesterDetail, { foreignKey: 'short_tester_id', as: 'details', onDelete: 'CASCADE' });
+ShortTesterDetail.belongsTo(ShortTester, { foreignKey: 'short_tester_id', as: 'header' });
+
+ShortTester.belongsTo(Store, { foreignKey: 'store_id', as: 'store' });
+ShortTester.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
+
+ShortTesterDetail.belongsTo(ItemMaster, { foreignKey: 'item_id', as: 'itemInfo' });
+
+
+// --- ExpiryStock Associations ---
+ExpiryStock.hasMany(ExpiryStockDetail, { foreignKey: 'expiry_stock_id', as: 'details', onDelete: 'CASCADE' });
+ExpiryStockDetail.belongsTo(ExpiryStock, { foreignKey: 'expiry_stock_id', as: 'header' });
+
+ExpiryStock.belongsTo(Store, { foreignKey: 'store_id', as: 'store' });
+ExpiryStock.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
+
+ExpiryStockDetail.belongsTo(ItemMaster, { foreignKey: 'item_id', as: 'itemInfo' });
+
+export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception, Channel  , ExpiryStock , ExpiryStockDetail , ShortTester , ShortTesterDetail};

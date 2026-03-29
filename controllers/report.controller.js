@@ -1,6 +1,6 @@
 
 
-import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail, Interception, Channel } from "../models/associations.js";
+import { SaleItem, Sale, ItemMaster, Category, SubCategory, Attendance, User, Store, City, ShortItem, ShortItemDetail, Interception, Channel, ExpiryStock, ExpiryStockDetail, ShortTester, ShortTesterDetail } from "../models/associations.js";
 import { Op } from "sequelize";
 
 export const getAttendanceReport = async (req, res) => {
@@ -662,7 +662,7 @@ export const getSalesSummaryByBrand = async (req, res) => {
 
         // 3. Pivoting & Grouping Logic
         const groupedData = {};
-        
+
         // Report Header Totals (For the cards at the top)
         let reportGrandQty = 0;
         let reportGrandVal = 0;
@@ -671,7 +671,7 @@ export const getSalesSummaryByBrand = async (req, res) => {
             const sId = item.sale_header.id;
             // Image ke mutabiq categories: AMRIJ, EVERNOYA, NO!MO!, RHD, RIVAJ
             const catName = item.product?.category?.category_name?.toUpperCase() || "OTHER";
-            
+
             if (!groupedData[sId]) {
                 groupedData[sId] = {
                     saleId: sId,
@@ -730,5 +730,138 @@ export const getSalesSummaryByBrand = async (req, res) => {
     } catch (err) {
         console.error("Sales Summary Error:", err);
         return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+
+
+
+export const getExpiryReport = async (req, res) => {
+    try {
+        const { store_id, ba_user_id, fromDate, toDate, city_id, channel_id, item_id } = req.query;
+
+        let whereClause = {};
+        if (store_id) whereClause.store_id = store_id;
+        if (ba_user_id) whereClause.ba_user_id = ba_user_id;
+        if (fromDate && toDate) {
+            whereClause.report_date = { [Op.between]: [fromDate, toDate] };
+        }
+
+        const reports = await ExpiryStock.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Store, as: 'store',
+                    where: (city_id || channel_id) ? {
+                        ...(city_id && { city_id }),
+                        ...(channel_id && { channel_id })
+                    } : null,
+                    include: [
+                        { model: City, as: 'city', attributes: ['name'] },
+                        { model: Channel, as: 'channel', attributes: ['name'] }
+                    ]
+                },
+                { model: User, as: 'beauty_advisor', attributes: ['fullname'] },
+                {
+                    model: ExpiryStockDetail, as: 'details',
+                    include: [{
+                        model: ItemMaster, as: 'itemInfo',
+                        where: item_id ? { id: item_id } : null,
+                        attributes: ['product_name'],
+                        include: [
+                            { model: Category, as: 'category', attributes: ['category_name'] },
+                            { model: SubCategory, as: 'subcategory', attributes: ['subcategory_name'] }
+                        ]
+                    }]
+                }
+            ],
+            order: [['report_date', 'DESC']]
+        });
+
+        const formattedData = [];
+        reports.forEach(r => {
+            r.details.forEach(d => {
+                formattedData.push({
+                    reportId: r.id,
+                    date: r.report_date,
+                    cityName: r.store?.city?.name || 'N/A',
+                    channelName: r.store?.channel?.name || 'N/A',
+                    storeName: r.store?.store_name || 'N/A',
+                    baName: r.beauty_advisor?.fullname || 'N/A',
+                    itemName: d.itemInfo?.product_name || 'N/A',
+                    categoryName: d.itemInfo?.category?.category_name || 'N/A',
+                    expiryDate: d.expiry_date,
+                    quantity: d.quantity, // Extra Column
+                    picture: d.picture ? `${req.protocol}://${req.get('host')}/${d.picture}` : null // Full URL for Dashboard
+                });
+            });
+        });
+
+        res.status(200).json({ success: true, data: formattedData });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+
+
+export const getShortTestersReport = async (req, res) => {
+    try {
+        const { store_id, ba_user_id, fromDate, toDate, city_id, channel_id } = req.query;
+
+        let whereClause = {};
+        if (store_id) whereClause.store_id = store_id;
+        if (ba_user_id) whereClause.ba_user_id = ba_user_id;
+        if (fromDate && toDate) {
+            whereClause.report_date = { [Op.between]: [fromDate, toDate] };
+        }
+
+        const reports = await ShortTester.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Store, as: 'store',
+                    where: (city_id || channel_id) ? {
+                        ...(city_id && { city_id }),
+                        ...(channel_id && { channel_id })
+                    } : null,
+                    include: [
+                        { model: City, as: 'city', attributes: ['name'] },
+                        { model: Channel, as: 'channel', attributes: ['name'] }
+                    ]
+                },
+                { model: User, as: 'beauty_advisor', attributes: ['fullname'] },
+                {
+                    model: ShortTesterDetail, as: 'details',
+                    include: [{
+                        model: ItemMaster, as: 'itemInfo',
+                        attributes: ['product_name'],
+                        include: [
+                            { model: Category, as: 'category', attributes: ['category_name'] }
+                        ]
+                    }]
+                }
+            ],
+            order: [['report_date', 'DESC']]
+        });
+
+        const formattedData = [];
+        reports.forEach(r => {
+            r.details.forEach(d => {
+                formattedData.push({
+                    reportId: r.id,
+                    date: r.report_date,
+                    cityName: r.store?.city?.name || 'N/A',
+                    channelName: r.store?.channel?.name || 'N/A',
+                    storeName: r.store?.store_name || 'N/A',
+                    baName: r.beauty_advisor?.fullname || 'N/A',
+                    itemName: d.itemInfo?.product_name || 'N/A',
+                    categoryName: d.itemInfo?.category?.category_name || 'N/A'
+                });
+            });
+        });
+
+        res.status(200).json({ success: true, data: formattedData });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 };

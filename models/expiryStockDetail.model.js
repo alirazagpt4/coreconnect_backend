@@ -1,16 +1,16 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
 
-const ShortItemDetail = sequelize.define("ShortItemDetail", {
+const ExpiryStockDetail = sequelize.define("ExpiryStockDetail", {
     id: {
         type: DataTypes.INTEGER,
         autoIncrement: true,
         primaryKey: true
     },
-    short_item_id: {
+    expiry_stock_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: { model: 'ShortItems', key: 'id' },
+        references: { model: 'ExpiryStocks', key: 'id' },
         onDelete: 'CASCADE'
     },
     item_id: {
@@ -18,14 +18,22 @@ const ShortItemDetail = sequelize.define("ShortItemDetail", {
         allowNull: false,
         references: { model: 'ItemMasters', key: 'id' }
     },
+    expiry_date: { // Calendar se jo date select hogi wo yahan save hogi
+        type: DataTypes.DATEONLY,
+        allowNull: false
+    },
     quantity: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 1
+    },
+    picture: {
+        type: DataTypes.STRING,
+        allowNull: true
     }
 }, {
     timestamps: true,
-    tableName: 'ShortItemDetails'
+    tableName: 'ExpiryStockDetails'
 });
 
-export default ShortItemDetail;
+export default ExpiryStockDetail;
