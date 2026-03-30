@@ -21,6 +21,8 @@ import reportRoutes from "./routes/report.routes.js"
 import statusRoutes from "./routes/status.routes.js"
 import expiryStockRoutes from "./routes/expiryStock.routes.js";
 import shortTesterRoutes from "./routes/shortTester.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
+
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -58,6 +60,7 @@ app.use("/api/interceptions", interceptionRoutes);
 app.use("/api/expirestocks" , expiryStockRoutes);
 app.use("/api/shorttesters" , shortTesterRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/dashboard" , dashboardRoutes);
 app.use("/api/status", statusRoutes);
 
 
