@@ -3,7 +3,7 @@ import sequelize from "../config/db.js";
 
 import moment from 'moment';
 import {
-    Sale, SaleItem, Attendance, Interception, User, Store, Category, SubCategory, ItemMaster
+    Sale, SaleItem, Attendance, Interception, User, Store, Category, SubCategory, ItemMaster, Region, City
 } from '../models/associations.js'; // Ensure path is correct
 
 export const getDashboardStats = async (req, res) => {
@@ -195,5 +195,65 @@ export const getSalesTrend = async (req, res) => {
     } catch (error) {
         console.error("Sales Trend API Error:", error);
         res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+    }
+};
+
+export const getRegionWiseSales = async (req, res) => {
+    try {
+        const { range, startDate, endDate } = req.query;
+        let start, end;
+
+        // Date Logic (Standard)
+        if (range === 'custom' && startDate && endDate) {
+            start = moment(startDate).startOf('day').toDate();
+            end = moment(endDate).endOf('day').toDate();
+        } else if (range === 'yesterday') {
+            start = moment().subtract(1, 'days').startOf('day').toDate();
+            end = moment().subtract(1, 'days').endOf('day').toDate();
+        } else if (range === 'this_week') {
+            start = moment(moment().startOf('week')).toDate();
+            end = moment().endOf('day').toDate();
+        } else {
+            start = moment().startOf('month').toDate();
+            end = moment().endOf('day').toDate();
+        }
+
+        const data = await Sale.findAll({
+            attributes: [
+                // Yahan 'store->region.name' ya sirf 'store.region.name' ka masla ho sakta hai
+                // Hum literal use karenge taake SQL direct column uthaye
+                [sequelize.col('store.region.name'), 'regionName'],
+                [sequelize.fn('SUM', sequelize.col('total_amount')), 'totalRevenue']
+            ],
+            include: [{
+                model: Store,
+                as: 'store',
+                attributes: [],
+                required: true,
+                include: [{
+                    model: Region,
+                    as: 'region',
+                    attributes: [],
+                    required: true
+                }]
+            }],
+            where: {
+                sale_date: { [Op.between]: [start, end] }
+            },
+            group: ['store.region.id', 'store.region.name'],
+            subQuery: false, // Aggregate functions ke liye ye zaroori hai
+            raw: true
+        });
+
+        const formattedData = data.map(item => ({
+            region: item.regionName || 'Unknown',
+            revenue: parseFloat(item.totalRevenue || 0)
+        }));
+
+        res.status(200).json({ success: true, data: formattedData });
+
+    } catch (error) {
+        console.error("Region Sales Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
