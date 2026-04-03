@@ -9,8 +9,12 @@ const ExpiryStock = sequelize.define("ExpiryStock", {
     },
     store_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'Stores', key: 'id' }
+        allowNull: true, // ISKO TRUE KARO
+        references: {
+            model: 'Stores',
+            key: 'id'
+        },
+        onDelete: 'SET NULL' // Agar store delete ho jaye toh report delete na ho
     },
     ba_user_id: {
         type: DataTypes.INTEGER,

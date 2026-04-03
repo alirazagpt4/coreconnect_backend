@@ -18,10 +18,12 @@ export const createExpiryStock = async (req, res) => {
             return res.status(400).json({ success: false, message: "No items provided" });
         }
 
+        const validatedStoreId = (store_id && store_id !== '') ? Number(store_id) : null;
+
         // 2. Create Master Record
         const master = await ExpiryStock.create({
-            store_id,
-            ba_user_id,
+            store_id: validatedStoreId,
+            ba_user_id: Number(ba_user_id),
             report_date: new Date()
         }, { transaction: t });
 

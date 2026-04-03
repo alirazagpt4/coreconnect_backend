@@ -312,3 +312,25 @@ export const deleteUser = async (req, res) => {
         res.status(500).json({ message: "Internal Server Error", error: err.message });
     }
 };
+
+
+
+export const getSupervisorsForDropdown = async (req, res) => {
+    try {
+        const supervisors = await User.findAll({
+            attributes: ['id', 'name', 'fullname'], // Minimum data O(1) memory
+            include: [{
+                model: Designation,
+                as: 'designation',
+                where: { name: 'Supervisor' }, // Sirf supervisors filter karo
+                attributes: [] // Designation ke columns nahi chahiye
+            }],
+            where: { is_active: true },
+            order: [['name', 'ASC']]
+        });
+
+        res.status(200).json({ success: true, data: supervisors });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};

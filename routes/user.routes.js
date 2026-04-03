@@ -1,5 +1,5 @@
 import express from "express";
-import { createUser, deleteUser, getAllUsers, getMyTeam, loginUser, updateUser, userProfile } from "../controllers/user.controller.js";
+import { createUser, deleteUser, getAllUsers, getMyTeam, getSupervisorsForDropdown, loginUser, updateUser, userProfile } from "../controllers/user.controller.js";
 import { AuthenticateToken, isAdmin } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
@@ -13,6 +13,8 @@ router.get("/", AuthenticateToken, getAllUsers)
 router.get("/my-team", AuthenticateToken, getMyTeam)
 
 router.get("/profile", AuthenticateToken, userProfile)
+
+router.get("/supervisors" , AuthenticateToken , getSupervisorsForDropdown);
 
 router.patch("/:id", AuthenticateToken, isAdmin, updateUser);
 

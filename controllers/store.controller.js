@@ -1,16 +1,16 @@
-import { Store, City, Region, User, Channel } from "../models/associations.js";
+import { Store, City, Region, User, Channel, Designation } from "../models/associations.js";
 import { Op } from "sequelize";
 
 // 1. Create New Store
 export const createStore = async (req, res) => {
-    const { store_name, area, city_id, region_id, ba_user_id, targets, poc, store_manager_name, channel_id } = req.body;
+    const { store_name, area, city_id, region_id, ba_user_id, targets, poc, store_manager_name, channel_id, supervisor_id } = req.body;
     try {
         if (!store_name || !city_id || !region_id || !channel_id) {
             return res.status(400).json({ message: "Store Name, City  , Channel and Region are required!" });
         }
 
         const store = await Store.create({
-            store_name, area, city_id, region_id, ba_user_id, targets, poc, store_manager_name, channel_id
+            store_name, area, city_id, region_id, ba_user_id, targets, poc, store_manager_name, channel_id, supervisor_id
         });
 
         res.status(201).json({ message: "Store Created Successfully", store });
@@ -38,7 +38,8 @@ export const getAllStores = async (req, res) => {
                 { model: Channel, as: 'channel', attributes: ['name'] },
                 { model: City, as: 'city', attributes: ['name'] },
                 { model: Region, as: 'region', attributes: ['name'] },
-                { model: User, as: 'beauty_advisor', attributes: ['id', 'name', 'fullname'] }
+                { model: User, as: 'beauty_advisor', attributes: ['id', 'name', 'fullname'] },
+                { model: User, as: 'supervisor', attributes: ['id', 'name', 'fullname'] }
             ]
         });
 
@@ -68,7 +69,8 @@ export const updateStore = async (req, res) => {
             include: [
                 { model: City, as: 'city', attributes: ['name'] },
                 { model: Region, as: 'region', attributes: ['name'] },
-                { model: User, as: 'beauty_advisor', attributes: ['name', 'fullname'] }
+                { model: User, as: 'beauty_advisor', attributes: ['name', 'fullname'] },
+                { model: User, as: 'supervisor', attributes: ['id', 'name', 'fullname'] }
             ]
         });
 
@@ -89,5 +91,26 @@ export const deleteStore = async (req, res) => {
         res.status(200).json({ message: "Store Deleted Successfully" });
     } catch (err) {
         res.status(500).json({ message: "Delete Error", error: err.message });
+    }
+};
+
+
+
+// store.controller.js
+export const getSupervisorStores = async (req, res) => {
+    try {
+        const { supervisor_id } = req.params;
+
+        console.log("DEBUG: Received Supervisor ID:", supervisor_id);
+
+        const stores = await Store.findAll({
+            where: { supervisor_id: supervisor_id, is_active: true },
+            attributes: ['id', 'store_name', 'area'], // Light weight data for mobile
+            order: [['store_name', 'ASC']]
+        });
+
+        res.status(200).json({ success: true, data: stores });
+    } catch (err) {
+        res.status(500).json({ message: "Error", error: err.message });
     }
 };

@@ -48,6 +48,21 @@ Store.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
 User.hasMany(Store, { foreignKey: 'ba_user_id', as: 'assigned_stores' });
 
 
+// Supervisors and stores relationship
+
+Store.belongsTo(User, {
+    foreignKey: 'supervisor_id',
+    as: 'supervisor'
+});
+
+User.hasMany(Store, {
+    foreignKey: 'supervisor_id',
+    as: 'supervised_stores'
+});
+
+
+
+
 // associations.js mein ye add karein:
 Category.hasMany(SubCategory, { foreignKey: 'category_id', as: 'subcategories' });
 SubCategory.belongsTo(Category, { foreignKey: 'category_id', as: 'category' });
@@ -128,4 +143,4 @@ ExpiryStock.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
 
 ExpiryStockDetail.belongsTo(ItemMaster, { foreignKey: 'item_id', as: 'itemInfo' });
 
-export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception, Channel  , ExpiryStock , ExpiryStockDetail , ShortTester , ShortTesterDetail};
+export { User, City, Region, Designation, Attendance, Store, SubCategory, Category, ItemMaster, Sale, SaleItem, ShortItem, ShortItemDetail, Interception, Channel, ExpiryStock, ExpiryStockDetail, ShortTester, ShortTesterDetail };
