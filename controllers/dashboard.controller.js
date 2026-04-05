@@ -257,3 +257,97 @@ export const getRegionWiseSales = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+
+
+
+export const getCategoryPerformance = async (req, res) => {
+    try {
+        const { range, startDate, endDate } = req.query;
+        let start, end;
+
+        // --- Standard Date Logic ---
+        if (range === 'custom' && startDate && endDate) {
+            start = moment(startDate).startOf('day').toDate();
+            end = moment(endDate).endOf('day').toDate();
+        } else if (range === 'yesterday') {
+            start = moment().subtract(1, 'days').startOf('day').toDate();
+            end = moment().subtract(1, 'days').endOf('day').toDate();
+        } else if (range === 'this_week') {
+            start = moment().startOf('week').toDate();
+            end = moment().endOf('day').toDate();
+        } else if (range === 'today') { // Added Today for quick check
+            start = moment().startOf('day').toDate();
+            end = moment().endOf('day').toDate();
+        } else {
+            // Default: This Month
+            start = moment().startOf('month').toDate();
+            end = moment().endOf('day').toDate();
+        }
+
+        // --- Aggregation Query ---
+        const performanceData = await SaleItem.findAll({
+            attributes: [
+                [fn('SUM', col('SaleItem.quantity')), 'total_units'],
+                [fn('SUM', col('SaleItem.subtotal')), 'total_revenue'],
+            ],
+            include: [
+                {
+                    // 1. Link to Sale Master for Date Filtering
+                    model: Sale,
+                    as: 'sale_header',
+                    attributes: [],
+                    where: {
+                        sale_date: { [Op.between]: [start, end] } // 👈 Filter yahan apply hoga
+                    }
+                },
+                {
+                    // 2. Link to Product and Category for Grouping
+                    model: ItemMaster,
+                    as: 'product',
+                    attributes: [],
+                    include: [{
+                        model: Category,
+                        as: 'category',
+                        attributes: ['id', 'category_name']
+                    }]
+                }
+            ],
+            // Grouping: ItemMaster ki category_id aur Category table ki primary key par
+            group: ['product.category_id', 'product->category.id'],
+            raw: true,
+            nest: true,
+            subQuery: false // Important for Aggregations
+        });
+
+        // --- Totals and Formatting ---
+        const grandTotalUnits = performanceData.reduce((acc, curr) => acc + parseInt(curr.total_units || 0), 0);
+        const grandTotalRevenue = performanceData.reduce((acc, curr) => acc + parseFloat(curr.total_revenue || 0), 0);
+
+        const formattedData = performanceData.map(row => {
+            const units = parseInt(row.total_units || 0);
+            return {
+                name: row.product?.category?.category_name || 'Others',
+                units: units,
+                revenue: parseFloat(row.total_revenue || 0),
+                percentage: grandTotalUnits > 0 ? ((units / grandTotalUnits) * 100).toFixed(1) : 0
+            };
+        });
+
+        formattedData.sort((a, b) => b.units - a.units);
+
+        res.status(200).json({
+            success: true,
+            meta: { range, start, end }, // Debugging ke liye range wapis bhejna acha hota hai
+            summary: {
+                totalRevenue: grandTotalRevenue,
+                totalUnits: grandTotalUnits
+            },
+            data: formattedData
+        });
+
+    } catch (err) {
+        console.error("Dashboard KPI Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
