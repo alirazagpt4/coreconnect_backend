@@ -1,4 +1,4 @@
-import { Op, fn, col } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
 import sequelize from "../config/db.js";
 
 import moment from 'moment';
@@ -348,6 +348,131 @@ export const getCategoryPerformance = async (req, res) => {
 
     } catch (err) {
         console.error("Dashboard KPI Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+export const getStoreWisePerformance = async (req, res) => {
+    try {
+        const { range, startDate, endDate } = req.query;
+        let start, end;
+
+        // --- 1. Standard Date Logic (Identical to Category Performance) ---
+        if (range === 'custom' && startDate && endDate) {
+            start = moment(startDate).startOf('day').toDate();
+            end = moment(endDate).endOf('day').toDate();
+        } else if (range === 'yesterday') {
+            start = moment().subtract(1, 'days').startOf('day').toDate();
+            end = moment().subtract(1, 'days').endOf('day').toDate();
+        } else if (range === 'this_week') {
+            start = moment().startOf('week').toDate();
+            end = moment().endOf('day').toDate();
+        } else if (range === 'today') {
+            start = moment().startOf('day').toDate();
+            end = moment().endOf('day').toDate();
+        } else {
+            // Default: This Month
+            start = moment().startOf('month').toDate();
+            end = moment().endOf('day').toDate();
+        }
+
+        // --- 2. Aggregation Query using Sub-queries (Literals) ---
+        // Hum sub-queries isliye use kar rahe hain taake Sales aur Interceptions 
+        // ka data aapas mein multiply (Cartesian Product) na ho.
+        const performanceData = await Store.findAll({
+            attributes: [
+                'id',
+                'store_name',
+                'area',
+                // Revenue Aggregation
+                [
+                    literal(`(
+                        SELECT COALESCE(SUM(total_amount), 0)
+                        FROM Sales AS s
+                        WHERE s.store_id = Store.id
+                        AND s.sale_date BETWEEN '${moment(start).format('YYYY-MM-DD HH:mm:ss')}' 
+                        AND '${moment(end).format('YYYY-MM-DD HH:mm:ss')}'
+                    )`),
+                    'total_revenue'
+                ],
+                // Items Sold Aggregation
+                [
+                    literal(`(
+                        SELECT COALESCE(SUM(si.quantity), 0)
+                        FROM SaleItems AS si
+                        JOIN Sales AS s ON si.sale_id = s.id
+                        WHERE s.store_id = Store.id
+                        AND s.sale_date BETWEEN '${moment(start).format('YYYY-MM-DD HH:mm:ss')}' 
+                        AND '${moment(end).format('YYYY-MM-DD HH:mm:ss')}'
+                    )`),
+                    'total_items'
+                ],
+                // Interceptions Aggregation
+                [
+                    literal(`(
+                        SELECT COALESCE(SUM(intercepted), 0)
+                        FROM interceptions AS i
+                        WHERE i.store_id = Store.id
+                        AND i.report_date BETWEEN '${moment(start).format('YYYY-MM-DD')}' 
+                        AND '${moment(end).format('YYYY-MM-DD')}'
+                    )`),
+                    'total_intercepted'
+                ],
+                // Converted Aggregation (For Ratio Calculation)
+                [
+                    literal(`(
+                        SELECT COALESCE(SUM(converted), 0)
+                        FROM interceptions AS i
+                        WHERE i.store_id = Store.id
+                        AND i.report_date BETWEEN '${moment(start).format('YYYY-MM-DD')}' 
+                        AND '${moment(end).format('YYYY-MM-DD')}'
+                    )`),
+                    'total_converted'
+                ]
+            ],
+            where: { is_active: true },
+            order: [[literal('total_revenue'), 'DESC']],
+            limit: 5,
+            raw: true
+        });
+
+        // --- 3. Formatting & Summary Calculation ---
+        let summaryRevenue = 0;
+        let summaryItems = 0;
+
+        const formattedData = performanceData.map(row => {
+            const revenue = Math.round(parseFloat(row.total_revenue || 0));
+            const items = parseInt(row.total_items || 0);
+            const intercepted = parseInt(row.total_intercepted || 0);
+            const converted = parseInt(row.total_converted || 0);
+
+            summaryRevenue += revenue;
+            summaryItems += items;
+
+            return {
+                store_name: row.store_name,
+                area: row.area || 'N/A',
+                revenue: revenue,
+                items: items,
+                interceptions: intercepted,
+                // Conversion % calculate on the fly
+                conv_rate: intercepted > 0 ? ((converted / intercepted) * 100).toFixed(1) : "0.0"
+            };
+        });
+
+        // --- 4. Final Response ---
+        res.status(200).json({
+            success: true,
+            meta: { range, start, end },
+            summary: {
+                totalRevenue: summaryRevenue,
+                totalItems: summaryItems
+            },
+            data: formattedData
+        });
+
+    } catch (err) {
+        console.error("Store Performance Error:", err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
