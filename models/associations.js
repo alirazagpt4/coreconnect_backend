@@ -48,6 +48,10 @@ Store.belongsTo(User, { foreignKey: 'ba_user_id', as: 'beauty_advisor' });
 User.hasMany(Store, { foreignKey: 'ba_user_id', as: 'assigned_stores' });
 
 
+Store.belongsTo(User, { foreignKey: 'ba_user_id_2', as: 'beauty_advisor_2' });
+User.hasMany(Store, { foreignKey: 'ba_user_id_2', as: 'secondary_assigned_stores' });
+
+
 // Supervisors and stores relationship
 
 Store.belongsTo(User, {

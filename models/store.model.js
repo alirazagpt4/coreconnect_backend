@@ -21,6 +21,10 @@ const Store = sequelize.define("Store", {
     city_id: { type: DataTypes.INTEGER, allowNull: false },
     region_id: { type: DataTypes.INTEGER, allowNull: false },
     ba_user_id: { type: DataTypes.INTEGER, allowNull: true },
+    ba_user_id_2: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
     supervisor_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
