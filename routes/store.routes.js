@@ -3,10 +3,10 @@ import { createStore, getAllStores, updateStore, deleteStore, getSupervisorStore
 import { AuthenticateToken, isAdmin } from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
-router.post("/create-store", AuthenticateToken, isAdmin, createStore);
+router.post("/create-store", AuthenticateToken,  createStore);
 router.get("/", AuthenticateToken, getAllStores);
 router.get("/supervisor/:supervisor_id", AuthenticateToken, getSupervisorStores);
-router.patch("/:id", AuthenticateToken, isAdmin, updateStore);
+router.patch("/:id", AuthenticateToken, updateStore);
 router.delete("/:id", AuthenticateToken, isAdmin, deleteStore);
 
 export default router;

@@ -3,7 +3,7 @@ import sequelize from "../config/db.js";
 
 import moment from 'moment';
 import {
-    Sale, SaleItem, Attendance, Interception, User, Store, Category, SubCategory, ItemMaster, Region, City
+    Sale, SaleItem, Attendance, Interception, User, Store, Category, SubCategory, ItemMaster, Region, City, ShortItem, ShortItemDetail, ExpiryStock, ExpiryStockDetail
 } from '../models/associations.js'; // Ensure path is correct
 
 export const getDashboardStats = async (req, res) => {
@@ -474,5 +474,98 @@ export const getStoreWisePerformance = async (req, res) => {
     } catch (err) {
         console.error("Store Performance Error:", err);
         res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+
+
+
+export const getShortItemsWidgetData = async (req, res) => {
+    try {
+        const { range, startDate, endDate } = req.query;
+        let start, end;
+
+        // --- 1. Date Logic (Sync with your other widgets) ---
+        if (range === 'custom' && startDate && endDate) {
+            start = moment(startDate).startOf('day').toDate();
+            end = moment(endDate).endOf('day').toDate();
+        } else if (range === 'today') {
+            start = moment().startOf('day').toDate();
+            end = moment().endOf('day').toDate();
+        } else if (range === 'this_week') {
+            start = moment().startOf('week').toDate();
+            end = moment().endOf('day').toDate();
+        } else {
+            // Default: This Month
+            start = moment().startOf('month').toDate();
+            end = moment().endOf('day').toDate();
+        }
+
+        // --- 2. The Optimized Query ---
+        const data = await ShortItemDetail.findAll({
+            attributes: [
+                'item_id',
+                [sequelize.fn('COUNT', sequelize.col('ShortItemDetail.id')), 'requests_count'],
+                [sequelize.col('itemInfo->category.category_name'), 'category_name']
+            ],
+            include: [
+                {
+                    model: ItemMaster,
+                    as: 'itemInfo',
+                    attributes: ['product_name'],
+                    include: [{
+                        model: Category,
+                        as: 'category',
+                        attributes: []
+                    }]
+                },
+                {
+                    model: ShortItem,
+                    as: 'short_item_header',
+                    // FIX: Attributes empty rakho, sirf filter (where) use karo
+                    attributes: [],
+                    where: {
+                        report_date: { [Op.between]: [start, end] }
+                    }
+                }
+            ],
+            subQuery: false,
+            group: [
+                'ShortItemDetail.item_id',
+                'itemInfo.id',
+                'itemInfo->category.id',
+                'itemInfo.product_name' // Name bhi group mein daal do safe side ke liye
+            ],
+            order: [[sequelize.literal('requests_count'), 'DESC']],
+            // limit: 6,
+            raw: true,
+            nest: true
+        });
+
+        // --- 3. Summary Totals ---
+        const totalRequests = await ShortItemDetail.count({
+            include: [{
+                model: ShortItem,
+                as: 'short_item_header',
+                where: { report_date: { [Op.between]: [start, end] } }
+            }]
+        });
+
+        res.status(200).json({
+            success: true,
+            summary: {
+                totalRequests,
+                uniqueSKUs: data.length
+            },
+            data
+        });
+
+    } catch (error) {
+        console.error("Short Items Widget Error:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message,
+            sql: error.sql // Debugging ke liye terminal mein SQL query dekho
+        });
     }
 };

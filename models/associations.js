@@ -52,6 +52,9 @@ Store.belongsTo(User, { foreignKey: 'ba_user_id_2', as: 'beauty_advisor_2' });
 User.hasMany(Store, { foreignKey: 'ba_user_id_2', as: 'secondary_assigned_stores' });
 
 
+// Taake Controller aur Association aik hi language bolein
+ShortItemDetail.belongsTo(ShortItem, { foreignKey: 'short_item_id', as: 'short_item_header' });
+
 // Supervisors and stores relationship
 
 Store.belongsTo(User, {

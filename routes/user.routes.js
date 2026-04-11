@@ -14,9 +14,9 @@ router.get("/my-team", AuthenticateToken, getMyTeam)
 
 router.get("/profile", AuthenticateToken, userProfile)
 
-router.get("/supervisors" , AuthenticateToken , getSupervisorsForDropdown);
+router.get("/supervisors", AuthenticateToken, getSupervisorsForDropdown);
 
-router.patch("/:id", AuthenticateToken, isAdmin, updateUser);
+router.patch("/:id", AuthenticateToken, updateUser);
 
 router.delete(":id", AuthenticateToken, isAdmin, deleteUser);
 
