@@ -485,7 +485,7 @@ export const getShortItemsWidgetData = async (req, res) => {
         const { range, startDate, endDate } = req.query;
         let start, end;
 
-        // --- 1. Date Logic (Sync with your other widgets) ---
+        // 1. Date Logic
         if (range === 'custom' && startDate && endDate) {
             start = moment(startDate).startOf('day').toDate();
             end = moment(endDate).endOf('day').toDate();
@@ -496,66 +496,56 @@ export const getShortItemsWidgetData = async (req, res) => {
             start = moment().startOf('week').toDate();
             end = moment().endOf('day').toDate();
         } else {
-            // Default: This Month
             start = moment().startOf('month').toDate();
             end = moment().endOf('day').toDate();
         }
 
-        // --- 2. The Optimized Query ---
+        // 2. Single Source of Truth Query
+        // We fetch the data ONCE. 
         const data = await ShortItemDetail.findAll({
             attributes: [
-                'item_id',
-                [sequelize.fn('COUNT', sequelize.col('ShortItemDetail.id')), 'requests_count'],
-                [sequelize.col('itemInfo->category.category_name'), 'category_name']
+                'id',
+                'item_id', // Ensure this matches your FK to ItemMaster
+                [sequelize.col('itemInfo->category.category_name'), 'category_name'],
+                [sequelize.col('short_item_header->store.store_name'), 'store_name'],
+                [sequelize.col('short_item_header->store.area'), 'area'],
+                [sequelize.col('short_item_header->beauty_advisor.fullname'), 'ba_name']
             ],
             include: [
                 {
                     model: ItemMaster,
                     as: 'itemInfo',
                     attributes: ['product_name'],
-                    include: [{
-                        model: Category,
-                        as: 'category',
-                        attributes: []
-                    }]
+                    include: [{ model: Category, as: 'category', attributes: [] }]
                 },
                 {
                     model: ShortItem,
                     as: 'short_item_header',
-                    // FIX: Attributes empty rakho, sirf filter (where) use karo
-                    attributes: [],
-                    where: {
-                        report_date: { [Op.between]: [start, end] }
-                    }
+                    attributes: ['report_date'],
+                    where: { report_date: { [Op.between]: [start, end] } },
+                    required: true,
+                    include: [
+                        { model: Store, as: 'store', attributes: [] },
+                        { model: User, as: 'beauty_advisor', attributes: [] }
+                    ]
                 }
             ],
-            subQuery: false,
-            group: [
-                'ShortItemDetail.item_id',
-                'itemInfo.id',
-                'itemInfo->category.id',
-                'itemInfo.product_name' // Name bhi group mein daal do safe side ke liye
-            ],
-            order: [[sequelize.literal('requests_count'), 'DESC']],
-            // limit: 6,
             raw: true,
             nest: true
         });
 
-        // --- 3. Summary Totals ---
-        const totalRequests = await ShortItemDetail.count({
-            include: [{
-                model: ShortItem,
-                as: 'short_item_header',
-                where: { report_date: { [Op.between]: [start, end] } }
-            }]
-        });
+        // 3. Efficiency: Calculate metrics in-memory from the result set
+        // This saves 2 extra database round-trips.
+        const totalRequests = data.length;
+
+        // Use a Set to get UNIQUE item_ids
+        const uniqueSKUsCount = new Set(data.map(item => item.item_id)).size;
 
         res.status(200).json({
             success: true,
             summary: {
-                totalRequests,
-                uniqueSKUs: data.length
+                totalRequests,     // Total rows found
+                uniqueSKUs: uniqueSKUsCount // Number of distinct products
             },
             data
         });
@@ -564,8 +554,7 @@ export const getShortItemsWidgetData = async (req, res) => {
         console.error("Short Items Widget Error:", error);
         res.status(500).json({
             success: false,
-            message: error.message,
-            sql: error.sql // Debugging ke liye terminal mein SQL query dekho
+            message: "Internal Server Error"
         });
     }
 };
