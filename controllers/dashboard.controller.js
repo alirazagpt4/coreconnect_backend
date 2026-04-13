@@ -558,3 +558,86 @@ export const getShortItemsWidgetData = async (req, res) => {
         });
     }
 };
+
+
+
+export const getExpiryStockWidgetData = async (req, res) => {
+    try {
+        const { range, startDate, endDate } = req.query;
+        let start, end;
+
+        // Standard Date Logic
+        if (range === 'custom' && startDate && endDate) {
+            start = moment(startDate).startOf('day').toDate();
+            end = moment(endDate).endOf('day').toDate();
+        } else if (range === 'today') {
+            start = moment().startOf('day').toDate();
+            end = moment().endOf('day').toDate();
+        } else {
+            start = moment().startOf('month').toDate();
+            end = moment().endOf('day').toDate();
+        }
+
+        const data = await ExpiryStockDetail.findAll({
+            attributes: [
+                'id',
+                'item_id',
+                'expiry_date',
+                'quantity',
+                [sequelize.col('itemInfo->category.category_name'), 'category_name'],
+                [sequelize.col('header->store.store_name'), 'store_name'],
+                [sequelize.col('header->store.area'), 'area'],
+                // CHANGE: Now fetching Supervisor Name instead of BA [cite: 2026-04-12]
+                [sequelize.col('header->store->supervisor.fullname'), 'supervisor_name']
+            ],
+            include: [
+                {
+                    model: ItemMaster,
+                    as: 'itemInfo',
+                    attributes: ['product_name', 'item_code'],
+                    include: [{ model: Category, as: 'category', attributes: [] }]
+                },
+                {
+                    model: ExpiryStock,
+                    as: 'header',
+                    attributes: ['report_date'],
+                    required: true,
+                    where: { report_date: { [Op.between]: [start, end] } },
+                    include: [
+                        {
+                            model: Store,
+                            as: 'store',
+                            attributes: [],
+                            include: [
+                                {
+                                    model: User,
+                                    as: 'supervisor', // Associated in your model [cite: 2026-04-12]
+                                    attributes: []
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ],
+            raw: true,
+            nest: true
+        });
+
+        const totalUnits = data.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
+
+        res.status(200).json({
+            success: true,
+            summary: {
+                totalUnits,
+                totalReports: data.length,
+                uniqueSKUs: new Set(data.map(item => item.item_id)).size
+            },
+            data
+        });
+
+    } catch (error) {
+        console.error("Expiry Stock Supervisor Widget Error:", error);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+

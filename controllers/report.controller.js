@@ -271,7 +271,7 @@ export const generateSaleExecutiveReport = async (req, res) => {
                     model: SaleItem, as: 'items',
                     include: [{ model: ItemMaster, as: 'product', attributes: ['product_name'] }]
                 },
-                { model: Store, as: 'store', attributes: ['store_name'] }
+                { model: Store, as: 'store', attributes: ['store_name', 'area'] }
             ],
             order: [['sale_date', 'ASC']]
         });
@@ -304,6 +304,7 @@ export const generateSaleExecutiveReport = async (req, res) => {
 
             combinedReport[dateKey].sales.push({
                 store: sale.store?.store_name || 'N/A',
+                area: sale.store?.area || 'N/A',
                 items: items,
                 saleTotal: sale.total_amount
             });
@@ -421,7 +422,7 @@ export const getSalesReportMobile = async (req, res) => {
                     where: saleWhere,
                     required: true,
                     include: [
-                        { model: Store, as: 'store', attributes: ['store_name'] },
+                        { model: Store, as: 'store', attributes: ['store_name', 'area'] },
                         { model: User, as: 'beauty_advisor', attributes: ['fullname', 'name'] }
                     ]
                 },
@@ -435,6 +436,7 @@ export const getSalesReportMobile = async (req, res) => {
             date: new Date(val.sale_header.sale_date).toLocaleDateString('en-GB'),
             baName: val.sale_header.beauty_advisor?.fullname || val.sale_header.beauty_advisor?.name,
             storeName: val.sale_header.store?.store_name,
+            area: val.sale_header.store?.area,
             product: val.product?.product_name,
             qty: val.quantity,
             price: val.price,
