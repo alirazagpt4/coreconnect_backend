@@ -4,10 +4,11 @@ import Channel from "./channel.model.js";
 
 const Store = sequelize.define("Store", {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    store_name: { type: DataTypes.STRING, allowNull: false },
+    store_name: { type: DataTypes.STRING, allowNull: false, unique: true },
     area: {
         type: DataTypes.STRING,
-        allowNull: true, // Ya false agar har store ka area lazmi chahiye
+        allowNull: true,
+        unique: true// Ya false agar har store ka area lazmi chahiye
     },
     // Nayi Field: Channel Linking
     channel_id: {

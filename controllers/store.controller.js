@@ -2,32 +2,57 @@ import { Store, City, Region, User, Channel, Designation } from "../models/assoc
 import { Op } from "sequelize";
 
 // 1. Create New Store
+// 1. Create New Store
 export const createStore = async (req, res) => {
-    const { store_name, area, city_id, region_id, ba_user_id, ba_user_id_2, targets, poc, store_manager_name, channel_id, supervisor_id } = req.body;
+    const {
+        store_name, area, city_id, region_id,
+        ba_user_id, ba_user_id_2, ba_user_id_3,
+        targets, poc, store_manager_name, channel_id, supervisor_id
+    } = req.body;
+
     try {
+
+        // 1. Logic Check: Pehle hi check karlo taake DB error na phenke
+        const existingStore = await Store.findOne({ where: { store_name } });
+
+        if (existingStore) {
+            return res.status(400).json({
+                success: false,
+                message: `Store "${store_name}" exists in the system. Please try a different Store Name.`
+            });
+        }
+
         if (!store_name || !city_id || !region_id) {
-            return res.status(400).json({ message: "Store Name, City  and Region are required!" });
+            return res.status(400).json({ message: "Store Name, City and Region are required!" });
         }
 
-        if (ba_user_id && ba_user_id_2 && ba_user_id === ba_user_id_2) {
-            return res.status(400).json({ message: "both BAs are same!" });
+        // Logic Check: Same BA cannot be in multiple slots of the SAME store
+        const bas = [ba_user_id, ba_user_id_2, ba_user_id_3].filter(id => id);
+        const uniqueBAs = new Set(bas);
+        if (bas.length !== uniqueBAs.size) {
+            return res.status(400).json({ message: "Multiple BA slots are not assigned." });
         }
 
-
-        // --- ADDED VALIDATION FOR CREATE ---
+        // Availability Checks
         if (ba_user_id) {
             const busyBA1 = await checkBAAvailability(ba_user_id);
             if (busyBA1) return res.status(400).json({ message: `BA 1 is already in store "${busyBA1.store_name}".` });
         }
         if (ba_user_id_2) {
             const busyBA2 = await checkBAAvailability(ba_user_id_2);
-            if (busyBA2) return res.status(400).json({ message: `BA 2 is already in store "${busyBA2.store_name}."` });
+            if (busyBA2) return res.status(400).json({ message: `BA 2 is already in store "${busyBA2.store_name}".` });
         }
-        // ------------------------------------
+        if (ba_user_id_3) {
+            const busyBA3 = await checkBAAvailability(ba_user_id_3);
+            if (busyBA3) return res.status(400).json({ message: `BA 3 is already in store "${busyBA3.store_name}".` });
+        }
 
         const store = await Store.create({
-            store_name, area, city_id, region_id, ba_user_id: ba_user_id || null,
-            ba_user_id_2: ba_user_id_2 || null, targets, poc, store_manager_name, channel_id, supervisor_id
+            store_name, area, city_id, region_id,
+            ba_user_id: ba_user_id || null,
+            ba_user_id_2: ba_user_id_2 || null,
+            ba_user_id_3: ba_user_id_3 || null, // Added
+            targets, poc, store_manager_name, channel_id, supervisor_id
         });
 
         res.status(201).json({ message: "Store Created Successfully", store });
@@ -36,7 +61,7 @@ export const createStore = async (req, res) => {
     }
 };
 
-// 2. Get All Stores with Pagination & Search
+// 2. Get All Stores
 export const getAllStores = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -45,11 +70,9 @@ export const getAllStores = async (req, res) => {
         const offset = (page - 1) * limit;
 
         const { count, rows } = await Store.findAndCountAll({
-            where: {
-                store_name: { [Op.like]: `%${search}%` }
-            },
-            limit: limit,
-            offset: offset,
+            where: { store_name: { [Op.like]: `%${search}%` } },
+            limit,
+            offset,
             order: [['createdAt', 'DESC']],
             include: [
                 { model: Channel, as: 'channel', attributes: ['name'] },
@@ -57,6 +80,7 @@ export const getAllStores = async (req, res) => {
                 { model: Region, as: 'region', attributes: ['name'] },
                 { model: User, as: 'beauty_advisor', attributes: ['id', 'name', 'fullname'] },
                 { model: User, as: 'beauty_advisor_2', attributes: ['id', 'name', 'fullname'] },
+                { model: User, as: 'beauty_advisor_3', attributes: ['id', 'name', 'fullname'] }, // Added
                 { model: User, as: 'supervisor', attributes: ['id', 'name', 'fullname'] }
             ]
         });
@@ -74,77 +98,71 @@ export const getAllStores = async (req, res) => {
 };
 
 
-// Helper to check if BA is already busy elsewhere
+
+// / Helper to check if BA is already busy elsewhere (Updated for 3 BAs)
 const checkBAAvailability = async (userId, currentStoreId = null) => {
-    if (!userId) return null; // Agar None hai toh skip
+    if (!userId) return null;
 
     const existingAssignment = await Store.findOne({
         where: {
             [Op.or]: [
                 { ba_user_id: userId },
-                { ba_user_id_2: userId }
+                { ba_user_id_2: userId },
+                { ba_user_id_3: userId } // Added 3rd slot check
             ],
-            // Update ke waqt apne hi store ko check nahi karna
             ...(currentStoreId && { id: { [Op.ne]: currentStoreId } })
         }
     });
-
     return existingAssignment;
 };
+
 
 // 3. Update Store
 export const updateStore = async (req, res) => {
     const { id } = req.params;
-
-    // 1. Destructure values from body first!
-    const { ba_user_id, ba_user_id_2 } = req.body;
+    const { ba_user_id, ba_user_id_2, ba_user_id_3 } = req.body;
 
     try {
         const store = await Store.findByPk(id);
         if (!store) return res.status(404).json({ message: "Store not found!" });
 
-        // 2. Logic Check: Same BA in both slots
-        if (ba_user_id && ba_user_id_2 && ba_user_id === ba_user_id_2) {
-            return res.status(400).json({ message: "Primary aur Secondary BA same nahi ho sakte!" });
+        // Duplicate Check in same store
+        const bas = [ba_user_id, ba_user_id_2, ba_user_id_3].filter(id => id);
+        if (bas.length !== new Set(bas).size) {
+            return res.status(400).json({ message: "Store slots should not have dublicate bas !" });
         }
 
-        // 3. Helper Function Calls: Check if BAs are busy in OTHER stores
+        // Availability Check for all 3
         if (ba_user_id) {
-            const busyBA1 = await checkBAAvailability(ba_user_id, id);
-            if (busyBA1) {
-                return res.status(400).json({
-                    message: `BA 1 is already in store "${busyBA1.store_name}".`
-                });
-            }
+            const busy = await checkBAAvailability(ba_user_id, id);
+            if (busy) return res.status(400).json({ message: `BA 1 is already in store "${busy.store_name}".` });
         }
-
         if (ba_user_id_2) {
-            const busyBA2 = await checkBAAvailability(ba_user_id_2, id);
-            if (busyBA2) {
-                return res.status(400).json({
-                    message: `BA 2 is already in store "${busyBA2.store_name}."`
-                });
-            }
+            const busy = await checkBAAvailability(ba_user_id_2, id);
+            if (busy) return res.status(400).json({ message: `BA 2 is already in store "${busy.store_name}".` });
+        }
+        if (ba_user_id_3) {
+            const busy = await checkBAAvailability(ba_user_id_3, id);
+            if (busy) return res.status(400).json({ message: `BA 3 is already in store "${busy.store_name}".` });
         }
 
-        // 4. Clean Data for Update (None/Remove Logic)
         const dataToUpdate = {
             ...req.body,
-            // Agar empty string ya zero aye toh null set ho jaye
             ba_user_id: ba_user_id || null,
             ba_user_id_2: ba_user_id_2 || null,
+            ba_user_id_3: ba_user_id_3 || null, // Added
             supervisor_id: req.body.supervisor_id || null
         };
 
         await store.update(dataToUpdate);
 
-        // 5. Refresh data with all associations
         await store.reload({
             include: [
                 { model: City, as: 'city', attributes: ['name'] },
                 { model: Region, as: 'region', attributes: ['name'] },
                 { model: User, as: 'beauty_advisor', attributes: ['id', 'name', 'fullname'] },
                 { model: User, as: 'beauty_advisor_2', attributes: ['id', 'name', 'fullname'] },
+                { model: User, as: 'beauty_advisor_3', attributes: ['id', 'name', 'fullname'] }, // Added
                 { model: User, as: 'supervisor', attributes: ['id', 'name', 'fullname'] }
             ]
         });
