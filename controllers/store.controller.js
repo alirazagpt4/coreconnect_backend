@@ -23,7 +23,7 @@ export const createStore = async (req, res) => {
         });
 
         if (duplicateStore) {
-            
+
             return res.status(400).json({
                 success: false,
                 message: `Duplicate Entry: "${store_name}" is already registered in "${area}" for this channel.`
@@ -150,7 +150,9 @@ const checkBAAvailability = async (userId, currentStoreId = null) => {
 // 3. Update Store
 export const updateStore = async (req, res) => {
     const { id } = req.params;
-    const { ba_user_id, ba_user_id_2, ba_user_id_3 } = req.body;
+    const { store_name, area, channel_id,
+        ba_user_id, ba_user_id_2, ba_user_id_3,
+        supervisor_id } = req.body;
 
     try {
         const store = await Store.findByPk(id);
@@ -160,6 +162,30 @@ export const updateStore = async (req, res) => {
         const bas = [ba_user_id, ba_user_id_2, ba_user_id_3].filter(id => id);
         if (bas.length !== new Set(bas).size) {
             return res.status(400).json({ message: "Store slots should not have dublicate bas !" });
+        }
+
+
+        // --- 1. Store Uniqueness Validation (CRITICAL) ---
+        // Agar user name, area ya channel change karta hai toh check karo clash na ho
+        if (store_name || area || channel_id) {
+            const finalName = store_name || store.store_name;
+            const finalArea = area || store.area;
+            const finalChannel = channel_id || store.channel_id;
+
+            const duplicate = await Store.findOne({
+                where: {
+                    store_name: finalName.trim(),
+                    area: finalArea.trim(),
+                    channel_id: finalChannel,
+                    id: { [Op.ne]: id } // Current store ko exclude karo
+                }
+            });
+
+            if (duplicate) {
+                return res.status(400).json({
+                    message: `Duplicate: "${finalName}" is already registered in "${finalArea}" for this channel.`
+                });
+            }
         }
 
         // Availability Check for all 3
