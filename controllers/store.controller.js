@@ -1,7 +1,7 @@
 import { Store, City, Region, User, Channel, Designation } from "../models/associations.js";
 import { Op } from "sequelize";
 
-// 1. Create New Store
+
 // 1. Create New Store
 export const createStore = async (req, res) => {
     const {
@@ -12,15 +12,24 @@ export const createStore = async (req, res) => {
 
     try {
 
-        // 1. Logic Check: Pehle hi check karlo taake DB error na phenke
-        const existingStore = await Store.findOne({ where: { store_name } });
 
-        if (existingStore) {
+        // Check for Duplicate: Name + Area + Channel
+        const duplicateStore = await Store.findOne({
+            where: {
+                store_name: store_name.trim(),
+                area: area.trim(),
+                channel_id: channel_id
+            }
+        });
+
+        if (duplicateStore) {
+            
             return res.status(400).json({
                 success: false,
-                message: `Store "${store_name}" exists in the system. Please try a different Store Name.`
+                message: `Duplicate Entry: "${store_name}" is already registered in "${area}" for this channel.`
             });
         }
+
 
         if (!store_name || !city_id || !region_id) {
             return res.status(400).json({ message: "Store Name, City and Region are required!" });
@@ -66,22 +75,42 @@ export const getAllStores = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-        const search = req.query.search || "";
+        const search = req.query.search ? req.query.search.trim() : "";
         const offset = (page - 1) * limit;
 
+        const searchQuery = `%${search}%`;
+
         const { count, rows } = await Store.findAndCountAll({
-            where: { store_name: { [Op.like]: `%${search}%` } },
+            distinct: true,
             limit,
             offset,
             order: [['createdAt', 'DESC']],
+            // subQuery: false zaroori hai jab associations par filter lagana ho limit ke sath
+            subQuery: false,
+            where: search ? {
+                [Op.or]: [
+                    // Store Table Columns
+                    { store_name: { [Op.like]: searchQuery } },
+                    { area: { [Op.like]: searchQuery } },
+                    // Associated Tables Columns (Using $ association.column $ syntax)
+                    { '$city.name$': { [Op.like]: searchQuery } },
+                    { '$channel.name$': { [Op.like]: searchQuery } },
+                    { '$beauty_advisor.name$': { [Op.like]: searchQuery } },
+                    { '$beauty_advisor.fullname$': { [Op.like]: searchQuery } },
+                    { '$beauty_advisor_2.name$': { [Op.like]: searchQuery } },
+                    { '$beauty_advisor_3.name$': { [Op.like]: searchQuery } },
+                    { '$supervisor.name$': { [Op.like]: searchQuery } },
+                    { '$supervisor.fullname$': { [Op.like]: searchQuery } },
+                ]
+            } : {},
             include: [
-                { model: Channel, as: 'channel', attributes: ['name'] },
-                { model: City, as: 'city', attributes: ['name'] },
-                { model: Region, as: 'region', attributes: ['name'] },
-                { model: User, as: 'beauty_advisor', attributes: ['id', 'name', 'fullname'] },
-                { model: User, as: 'beauty_advisor_2', attributes: ['id', 'name', 'fullname'] },
-                { model: User, as: 'beauty_advisor_3', attributes: ['id', 'name', 'fullname'] }, // Added
-                { model: User, as: 'supervisor', attributes: ['id', 'name', 'fullname'] }
+                { model: Channel, as: 'channel', attributes: ['name'], required: false },
+                { model: City, as: 'city', attributes: ['name'], required: false },
+                { model: Region, as: 'region', attributes: ['name'], required: false },
+                { model: User, as: 'beauty_advisor', attributes: ['id', 'name', 'fullname'], required: false },
+                { model: User, as: 'beauty_advisor_2', attributes: ['id', 'name', 'fullname'], required: false },
+                { model: User, as: 'beauty_advisor_3', attributes: ['id', 'name', 'fullname'], required: false },
+                { model: User, as: 'supervisor', attributes: ['id', 'name', 'fullname'], required: false }
             ]
         });
 
@@ -93,6 +122,7 @@ export const getAllStores = async (req, res) => {
             stores: rows
         });
     } catch (err) {
+        console.error("Search Error:", err);
         res.status(500).json({ message: "Internal Server Error", error: err.message });
     }
 };
