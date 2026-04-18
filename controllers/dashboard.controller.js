@@ -432,7 +432,7 @@ export const getStoreWisePerformance = async (req, res) => {
             ],
             where: { is_active: true },
             order: [[literal('total_revenue'), 'DESC']],
-            limit: 5,
+            limit: 7,
             raw: true
         });
 

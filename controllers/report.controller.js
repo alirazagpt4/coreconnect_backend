@@ -926,7 +926,8 @@ export const getSalesSummaryByChannel = async (req, res) => {
                     required: true,
                     include: [{ model: Category, as: 'category', attributes: ['category_name'] }]
                 }
-            ]
+            ],
+            order: [[{ model: Sale, as: 'sale_header' }, 'sale_date', 'DESC']]
         });
 
 
