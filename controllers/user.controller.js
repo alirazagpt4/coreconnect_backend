@@ -125,7 +125,16 @@ export const userProfile = async (req, res) => {
                 {
                     model: Store,
                     as: 'assigned_stores',
-                    attributes: ['id', 'store_name', 'area']
+                    // --- YE HAI REAL FIX ---
+                    on: {
+                        [Op.or]: [
+                            { ba_user_id: { [Op.col]: 'User.id' } },
+                            { ba_user_id_2: { [Op.col]: 'User.id' } },
+                            { ba_user_id_3: { [Op.col]: 'User.id' } }
+                        ]
+                    },
+                    attributes: ['id', 'store_name', 'area'],
+                    required: false
                 }
 
             ]
