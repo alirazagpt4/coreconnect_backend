@@ -1,5 +1,5 @@
 import { Store, City, Region, User, Channel, Designation } from "../models/associations.js";
-import { Op } from "sequelize";
+import { Sequelize, Op } from "sequelize";
 
 
 // 1. Create New Store
@@ -261,5 +261,23 @@ export const getSupervisorStores = async (req, res) => {
         res.status(200).json({ success: true, data: stores });
     } catch (err) {
         res.status(500).json({ message: "Error", error: err.message });
+    }
+};
+
+
+export const getUniqueAreas = async (req, res) => {
+    try {
+        const areas = await Store.findAll({
+            attributes: [
+                [Sequelize.fn('DISTINCT', Sequelize.col('area')), 'area']
+            ],
+            where: { area: { [Op.ne]: null } }, // Khali areas na aayein
+            raw: true
+        });
+
+        const areaList = areas.map(a => a.area).sort();
+        return res.status(200).json({ success: true, areas: areaList });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
     }
 };

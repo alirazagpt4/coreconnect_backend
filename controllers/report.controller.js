@@ -873,7 +873,7 @@ export const getShortTestersReport = async (req, res) => {
 
 export const getSalesSummaryByChannel = async (req, res) => {
     try {
-        const { fromDate, toDate, city_id, store_id, ba_id, channel_id } = req.query;
+        const { fromDate, toDate, city_id, store_id, area, channel_id } = req.query;
 
         let saleWhere = {};
         let storeWhere = {};
@@ -886,10 +886,15 @@ export const getSalesSummaryByChannel = async (req, res) => {
             };
         }
         if (store_id) saleWhere.store_id = store_id;
-        if (ba_id) saleWhere.ba_user_id = ba_id;
+        // if (ba_id) saleWhere.ba_user_id = ba_id;
 
         if (city_id) storeWhere.city_id = city_id;
         if (channel_id) storeWhere.channel_id = channel_id;
+
+        // Exact Area Filter
+        if (area) {
+            storeWhere.area = area;
+        }
 
         // 2. Fetch Data
         const data = await SaleItem.findAll({
