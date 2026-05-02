@@ -47,9 +47,9 @@ const User = sequelize.define('User', {
         allowNull: true,
         references: { model: 'Designation', key: 'id' }
     },
-    // Role ENUM ko update kiya
+    // Updated ENUM with 'auditor'
     role: {
-        type: DataTypes.ENUM('admin', 'user', 'supervisor', 'brandadmin', 'ccadmin'),
+        type: DataTypes.ENUM('admin', 'user', 'supervisor', 'brandadmin', 'ccadmin', 'auditor'),
         defaultValue: 'user'
     },
     reportTo: {
