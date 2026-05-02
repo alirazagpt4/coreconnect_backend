@@ -893,7 +893,13 @@ export const getSalesSummaryByChannel = async (req, res) => {
 
         // Exact Area Filter
         if (area) {
-            storeWhere.area = area;
+            const cleanArea = decodeURIComponent(area).trim(); // URL encoding aur hidden spaces ka khatma
+
+            storeWhere.area = {
+                [Op.like]: `%${cleanArea}%` // Exact match ki zid chhoro, LIKE use karo
+            };
+
+            console.log("Searching for decoded area:", cleanArea); // Debugging ke liye
         }
 
         // 2. Fetch Data
