@@ -1,52 +1,58 @@
 import { User, Attendance } from '../models/associations.js';
+import { Op } from 'sequelize';
 
 export const startDay = async (req, res) => {
     try {
-        // 1. Frontend se data pakarna
         const user_id = req.user.id;
         const { latitude, longitude, time, isLeave } = req.body;
-
-        // Check karna ke leave string hai ya boolean
         const leaveStatus = isLeave === 'true' || isLeave === true;
+
+        // --- IDEMPOTENCY CHECK (Date-wise) ---
+        // Aaj ki date ke start aur end points nikalna
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+
+        // Check if attendance already exists for today
+        const existingAttendance = await Attendance.findOne({
+            where: {
+                user_id: user_id,
+                createdAt: {
+                    [Op.between]: [startOfToday, endOfToday]
+                }
+            }
+        });
+
+        if (existingAttendance) {
+            return res.status(409).json({
+                success: false,
+                message: "Attendance for today is already marked!"
+            });
+        }
 
         let db_image_uri = null;
         let lat = null;
         let lng = null;
 
-        // --- Logic: Agar banda kaam par aaya hai (Leave NAHI hai) ---
         if (!leaveStatus) {
-            // Check 1: Kya camera se photo aayi?
             if (!req.file) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Live camera photo is required to start the day!"
-                });
+                return res.status(400).json({ success: false, message: "Live camera photo is required!" });
             }
-
-            // Check 2: Kya location aayi?
             if (!latitude || !longitude) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Location is required for attendance!"
-                });
+                return res.status(400).json({ success: false, message: "Location is required!" });
             }
 
-            // Multer ne file save kar di hai, hum sirf uska PATH (URI) database ke liye le rahe hain
             db_image_uri = `/uploads/${req.file.filename}`;
             lat = latitude;
             lng = longitude;
         }
 
-        // --- Logic: Agar Leave hai ---
-        else {
-            console.log("User is on leave. Saving entry without photo/location.");
-            // image_uri, lat, lng sab NULL hi rahenge
-        }
-
-        // 2. Database (Attendance Table) mein entry maarna
+        // --- ATOMIC CREATE ---
         const newAttendance = await Attendance.create({
-            user_id: user_id, // AuthenticateToken se aaya
-            image_uri: db_image_uri, // Database mein sirf path jayega
+            user_id: user_id,
+            image_uri: db_image_uri,
             latitude: lat,
             longitude: lng,
             mobile_time: time,
@@ -54,24 +60,22 @@ export const startDay = async (req, res) => {
             status: leaveStatus ? 'absent' : 'present'
         });
 
-        // 3. Final Response
         res.status(201).json({
             success: true,
             message: leaveStatus ? "Leave marked successfully!" : "Day started successfully!",
-            data: {
-                id: newAttendance.id,
-                time: newAttendance.mobile_time,
-                image: newAttendance.image_uri, // Frontend ko batana ke ye path save hua hai
-                isLeave: newAttendance.isLeave
-            }
+            data: newAttendance
         });
 
     } catch (error) {
+        // Agar DB level unique constraint trigger ho jaye (Race Condition)
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({
+                success: false,
+                message: "Duplicate entry blocked: Attendance already exists."
+            });
+        }
+
         console.error("❌ Attendance Error:", error);
-        res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };
