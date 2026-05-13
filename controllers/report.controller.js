@@ -27,17 +27,17 @@ export const getAttendanceReport = async (req, res) => {
                     include: [
                         { model: City, as: 'city', attributes: ['name'] },
                         // SIRF YEH 3 INCLUDES RAKHNE HAIN
-                        { 
-                            model: Store, as: 'assigned_stores', 
-                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }] 
+                        {
+                            model: Store, as: 'assigned_stores',
+                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
                         },
-                        { 
-                            model: Store, as: 'secondary_assigned_stores', 
-                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }] 
+                        {
+                            model: Store, as: 'secondary_assigned_stores',
+                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
                         },
-                        { 
-                            model: Store, as: 'tertiary_assigned_stores', 
-                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }] 
+                        {
+                            model: Store, as: 'tertiary_assigned_stores',
+                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
                         }
                     ]
                 }
@@ -51,10 +51,10 @@ export const getAttendanceReport = async (req, res) => {
 
         const report = data.map(val => {
             // --- FIX: Teeno mein se jo bhi store mil jaye wo uthalo ---
-            const store = val.user?.assigned_stores?.[0] || 
-                          val.user?.secondary_assigned_stores?.[0] || 
-                          val.user?.tertiary_assigned_stores?.[0] || {};
-            
+            const store = val.user?.assigned_stores?.[0] ||
+                val.user?.secondary_assigned_stores?.[0] ||
+                val.user?.tertiary_assigned_stores?.[0] || {};
+
             const channelName = store.channel?.name || 'N/A';
             const isOnLeave = val.isLeave === true || val.isLeave === 1 || val.status === 'absent';
 
@@ -1047,48 +1047,63 @@ export const getSalesSummaryByChannel = async (req, res) => {
 };
 
 
+
+
 export const getSalesSummaryFlattened = async (req, res) => {
     try {
         const { fromDate, toDate, city_id, store_id, area, channel_id } = req.query;
 
         let saleWhere = {};
         let storeWhere = {};
-        let commonCity = "All Cities"; // Default value
+        let headerCity = "All Cities";
+        let headerChannel = "All Channels";
+        let headerStore = "All Stores";
+        let headerArea = "All Areas";
 
-        // 1. AGAR city_id hai, toh pehle hi City Name dhoond lo
+        // 1. HEADER & MULTI-CITY LOGIC
         if (city_id) {
-            const cityData = await City.findByPk(city_id);
-            if (cityData) commonCity = cityData.name;
+            const cityIds = Array.isArray(city_id) ? city_id : city_id.split(',');
+            const citiesData = await City.findAll({ where: { id: { [Op.in]: cityIds } } });
+            headerCity = citiesData.map(c => c.name).join(', ');
+            storeWhere.city_id = { [Op.in]: cityIds };
         }
 
-        // 1. Filtering
+        if (channel_id) {
+            const chanIds = Array.isArray(channel_id) ? channel_id : channel_id.split(',');
+            const channelsData = await Channel.findAll({ where: { id: { [Op.in]: chanIds } } });
+            headerChannel = channelsData.map(c => c.name).join(', ');
+            storeWhere.channel_id = { [Op.in]: chanIds };
+        }
+
+        // 2. FILTERS (Store, Area, Date)
         if (fromDate && toDate) {
             saleWhere.sale_date = {
-                [Op.gte]: `${fromDate} 00:00:00`,
-                [Op.lte]: `${toDate} 23:59:59`
+                [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
             };
         }
         if (store_id) saleWhere.store_id = store_id;
-        if (city_id) storeWhere.city_id = city_id;
-        if (channel_id) storeWhere.channel_id = channel_id;
 
-        if (area) {
-            const cleanArea = decodeURIComponent(area).trim();
-            storeWhere.area = { [Op.like]: `%${cleanArea}%` };
+        // Store Header Logic
+        if (store_id) {
+            const storeData = await Store.findByPk(store_id);
+            if (storeData) headerStore = storeData.store_name;
         }
 
-        // 2. Database Query
+        // Area Header Logic
+        if (area && area !== "") {
+            headerArea = decodeURIComponent(area).trim();
+        }
+
+        // 3. DATABASE QUERY
         const data = await SaleItem.findAll({
             include: [
                 {
-                    model: Sale,
-                    as: 'sale_header',
+                    model: Sale, as: 'sale_header',
                     where: saleWhere,
                     required: true,
                     include: [
                         {
-                            model: Store,
-                            as: 'store',
+                            model: Store, as: 'store',
                             where: storeWhere,
                             required: true,
                             include: [
@@ -1099,33 +1114,28 @@ export const getSalesSummaryFlattened = async (req, res) => {
                     ]
                 },
                 {
-                    model: ItemMaster,
-                    as: 'product',
+                    model: ItemMaster, as: 'product',
                     required: true,
                     include: [{ model: Category, as: 'category', attributes: ['category_name'] }]
                 }
             ]
         });
 
+        // 4. GROUPING LOGIC (PURANA STYLE)
         const groupedData = {};
         let reportGrandQty = 0;
         let reportGrandVal = 0;
-
 
         data.forEach(item => {
             const header = item.sale_header;
             const store = header?.store;
             if (!header || !store) return;
 
-            // Agar city_id filter mein nahi tha, toh pehli sale se city uthao
-            if (commonCity === "All Cities") commonCity = store.city?.name || "N/A";
-
             const channelName = store.channel?.name || 'N/A';
             const channelId = store.channel_id || '0';
-
-            // Group by Channel ONLY (Date range is now a global header)
             const groupKey = `channel_${channelId}`;
 
+            // Initialize Channel Group if not exists
             if (!groupedData[groupKey]) {
                 groupedData[groupKey] = {
                     channel: channelName,
@@ -1135,8 +1145,8 @@ export const getSalesSummaryFlattened = async (req, res) => {
                 };
             }
 
+            // Find or Create Store Entry
             let storeEntry = groupedData[groupKey].stores.find(s => s.storeId === store.id);
-
             if (!storeEntry) {
                 storeEntry = {
                     storeId: store.id,
@@ -1160,7 +1170,7 @@ export const getSalesSummaryFlattened = async (req, res) => {
             const val = Number(item.subtotal) || 0;
             const catName = item.product?.category?.category_name?.toUpperCase() || "OTHER";
 
-            // Update Brand Totals
+            // Update Brand Data
             if (storeEntry.brands[catName]) {
                 storeEntry.brands[catName].qty += qty;
                 storeEntry.brands[catName].val += val;
@@ -1169,6 +1179,7 @@ export const getSalesSummaryFlattened = async (req, res) => {
                 storeEntry.brands["OTHER"].val += val;
             }
 
+            // Update Totals
             storeEntry.storeTotalQty += qty;
             storeEntry.storeTotalVal += val;
             groupedData[groupKey].channelTotalQty += qty;
@@ -1177,7 +1188,7 @@ export const getSalesSummaryFlattened = async (req, res) => {
             reportGrandVal += val;
         });
 
-        // 3. Response Structure with Global Header
+        // 5. FINAL MAPPING
         const finalResult = Object.values(groupedData).map(group => ({
             ...group,
             channelTotalVal: group.channelTotalVal.toFixed(2),
@@ -1190,7 +1201,10 @@ export const getSalesSummaryFlattened = async (req, res) => {
         return res.status(200).json({
             success: true,
             header: {
-                city: commonCity,
+                city: headerCity,
+                channel: headerChannel,
+                store: headerStore, // Added Store Name
+                area: headerArea,   // Added Area Name
                 period: fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`
             },
             summary: {
