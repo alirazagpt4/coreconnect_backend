@@ -5,7 +5,7 @@ import { Op } from "sequelize";
 
 export const getAttendanceReport = async (req, res) => {
     try {
-        const { fromDate, toDate, city_id, store_id, status, ba_id, channel_id, } = req.query;
+        const { fromDate, toDate, city_id, store_id, status, ba_id, channel_id } = req.query;
         const host = "62.171.183.182";
 
         let whereClause = {};
@@ -14,12 +14,8 @@ export const getAttendanceReport = async (req, res) => {
                 [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
             };
         }
-        if (ba_id && ba_id !== "") {
-            whereClause.user_id = ba_id;
-        }
-        if (status === 'present' || status === 'absent') {
-            whereClause.status = status;
-        }
+        if (ba_id && ba_id !== "") whereClause.user_id = ba_id;
+        if (status === 'present' || status === 'absent') whereClause.status = status;
 
         const data = await Attendance.findAll({
             where: whereClause,
@@ -30,20 +26,18 @@ export const getAttendanceReport = async (req, res) => {
                     where: city_id ? { city_id } : {},
                     include: [
                         { model: City, as: 'city', attributes: ['name'] },
-                        // Include section mein:
-                        {
-                            model: Store,
-                            as: 'assigned_stores',
-                            where: {
-                                ...(store_id ? { id: store_id } : {}),
-                                ...(channel_id ? { channel_id } : {}) // 2. Inject Filter
-                            },
-                            required: (store_id || channel_id) ? true : false,
-                            include: [
-                                // 👈 Yeh missing tha. Iske baghair channel ka naam nahi aayega.
-                                { model: Channel, as: 'channel', attributes: ['name'] }
-                            ]
-
+                        // SIRF YEH 3 INCLUDES RAKHNE HAIN
+                        { 
+                            model: Store, as: 'assigned_stores', 
+                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }] 
+                        },
+                        { 
+                            model: Store, as: 'secondary_assigned_stores', 
+                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }] 
+                        },
+                        { 
+                            model: Store, as: 'tertiary_assigned_stores', 
+                            include: [{ model: Channel, as: 'channel', attributes: ['name'] }] 
                         }
                     ]
                 }
@@ -51,17 +45,19 @@ export const getAttendanceReport = async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
 
-        // --- Summary Calculation (Naya Logic) ---
         let totalCount = data.length;
         let presentCount = 0;
         let absentCount = 0;
 
         const report = data.map(val => {
-            const store = val.user?.assigned_stores?.[0] || {};
-            const channelName = store.channel?.name || 'N/A'; //
+            // --- FIX: Teeno mein se jo bhi store mil jaye wo uthalo ---
+            const store = val.user?.assigned_stores?.[0] || 
+                          val.user?.secondary_assigned_stores?.[0] || 
+                          val.user?.tertiary_assigned_stores?.[0] || {};
+            
+            const channelName = store.channel?.name || 'N/A';
             const isOnLeave = val.isLeave === true || val.isLeave === 1 || val.status === 'absent';
 
-            // Counts update karein
             if (isOnLeave) { absentCount++; }
             else { presentCount++; }
 
@@ -72,22 +68,20 @@ export const getAttendanceReport = async (req, res) => {
                 }),
                 time: val.mobile_time || 'N/A',
                 city: val.user?.city?.name || 'N/A',
-                channelName: channelName, //
+                channelName: channelName,
                 area: store.area || 'General',
                 storeID: store.id,
                 storeName: store.store_name || 'Not Assigned',
                 baName: val.user?.fullname || val.user?.name || 'Unknown',
                 attendance: isOnLeave ? 'Absent' : 'Present',
                 picture: val.image_uri ? `http://${host}${val.image_uri}` : null,
-                location: val.latitude ? `http://maps.google.com/?q=${val.latitude},${val.longitude}` : 'No GPS'
+                location: val.latitude ? `https://www.google.com/maps?q=${val.latitude},${val.longitude}` : 'No GPS'
             };
         });
 
-        // Percentages nikalna (Divide by zero check ke saath)
         const presentPer = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) : 0;
         const absentPer = totalCount > 0 ? ((absentCount / totalCount) * 100).toFixed(1) : 0;
 
-        // Final Response mein summary add kar di
         res.json({
             success: true,
             summary: {
