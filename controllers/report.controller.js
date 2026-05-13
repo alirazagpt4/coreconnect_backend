@@ -1089,9 +1089,12 @@ export const getSalesSummaryFlattened = async (req, res) => {
             if (storeData) headerStore = storeData.store_name;
         }
 
-        // Area Header Logic
-        if (area && area !== "") {
+        // Area Header Logic + Query Filter
+        if (area && area.trim() !== "" && area !== "undefined") {
             headerArea = decodeURIComponent(area).trim();
+
+            // YEH LINE MISSING THI: Database query mein filter add karna
+            storeWhere.area = { [Op.like]: `%${headerArea}%` };
         }
 
         // 3. DATABASE QUERY
