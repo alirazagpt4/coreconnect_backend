@@ -1051,3 +1051,163 @@ export const getSalesSummaryByChannel = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };
+
+
+export const getSalesSummaryFlattened = async (req, res) => {
+    try {
+        const { fromDate, toDate, city_id, store_id, area, channel_id } = req.query;
+
+        let saleWhere = {};
+        let storeWhere = {};
+        let commonCity = "All Cities"; // Default value
+
+        // 1. AGAR city_id hai, toh pehle hi City Name dhoond lo
+        if (city_id) {
+            const cityData = await City.findByPk(city_id);
+            if (cityData) commonCity = cityData.name;
+        }
+
+        // 1. Filtering
+        if (fromDate && toDate) {
+            saleWhere.sale_date = {
+                [Op.gte]: `${fromDate} 00:00:00`,
+                [Op.lte]: `${toDate} 23:59:59`
+            };
+        }
+        if (store_id) saleWhere.store_id = store_id;
+        if (city_id) storeWhere.city_id = city_id;
+        if (channel_id) storeWhere.channel_id = channel_id;
+
+        if (area) {
+            const cleanArea = decodeURIComponent(area).trim();
+            storeWhere.area = { [Op.like]: `%${cleanArea}%` };
+        }
+
+        // 2. Database Query
+        const data = await SaleItem.findAll({
+            include: [
+                {
+                    model: Sale,
+                    as: 'sale_header',
+                    where: saleWhere,
+                    required: true,
+                    include: [
+                        {
+                            model: Store,
+                            as: 'store',
+                            where: storeWhere,
+                            required: true,
+                            include: [
+                                { model: City, as: 'city', attributes: ['name'] },
+                                { model: Channel, as: 'channel', attributes: ['name'] }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    model: ItemMaster,
+                    as: 'product',
+                    required: true,
+                    include: [{ model: Category, as: 'category', attributes: ['category_name'] }]
+                }
+            ]
+        });
+
+        const groupedData = {};
+        let reportGrandQty = 0;
+        let reportGrandVal = 0;
+
+
+        data.forEach(item => {
+            const header = item.sale_header;
+            const store = header?.store;
+            if (!header || !store) return;
+
+            // Agar city_id filter mein nahi tha, toh pehli sale se city uthao
+            if (commonCity === "All Cities") commonCity = store.city?.name || "N/A";
+
+            const channelName = store.channel?.name || 'N/A';
+            const channelId = store.channel_id || '0';
+
+            // Group by Channel ONLY (Date range is now a global header)
+            const groupKey = `channel_${channelId}`;
+
+            if (!groupedData[groupKey]) {
+                groupedData[groupKey] = {
+                    channel: channelName,
+                    channelTotalQty: 0,
+                    channelTotalVal: 0,
+                    stores: []
+                };
+            }
+
+            let storeEntry = groupedData[groupKey].stores.find(s => s.storeId === store.id);
+
+            if (!storeEntry) {
+                storeEntry = {
+                    storeId: store.id,
+                    storeName: store.store_name,
+                    area: store.area,
+                    brands: {
+                        "AMRIJ": { qty: 0, val: 0 },
+                        "EVERNOYA": { qty: 0, val: 0 },
+                        "NO!MO!": { qty: 0, val: 0 },
+                        "RHD": { qty: 0, val: 0 },
+                        "RIVAJ": { qty: 0, val: 0 },
+                        "OTHER": { qty: 0, val: 0 }
+                    },
+                    storeTotalQty: 0,
+                    storeTotalVal: 0
+                };
+                groupedData[groupKey].stores.push(storeEntry);
+            }
+
+            const qty = Number(item.quantity) || 0;
+            const val = Number(item.subtotal) || 0;
+            const catName = item.product?.category?.category_name?.toUpperCase() || "OTHER";
+
+            // Update Brand Totals
+            if (storeEntry.brands[catName]) {
+                storeEntry.brands[catName].qty += qty;
+                storeEntry.brands[catName].val += val;
+            } else {
+                storeEntry.brands["OTHER"].qty += qty;
+                storeEntry.brands["OTHER"].val += val;
+            }
+
+            storeEntry.storeTotalQty += qty;
+            storeEntry.storeTotalVal += val;
+            groupedData[groupKey].channelTotalQty += qty;
+            groupedData[groupKey].channelTotalVal += val;
+            reportGrandQty += qty;
+            reportGrandVal += val;
+        });
+
+        // 3. Response Structure with Global Header
+        const finalResult = Object.values(groupedData).map(group => ({
+            ...group,
+            channelTotalVal: group.channelTotalVal.toFixed(2),
+            stores: group.stores.map(s => ({
+                ...s,
+                storeTotalVal: s.storeTotalVal.toFixed(2)
+            }))
+        }));
+
+        return res.status(200).json({
+            success: true,
+            header: {
+                city: commonCity,
+                period: fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`
+            },
+            summary: {
+                grandTotalQty: reportGrandQty,
+                grandTotalVal: reportGrandVal.toFixed(2)
+            },
+            data: finalResult
+        });
+
+    } catch (err) {
+        console.error("Flattened Summary Error:", err);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
