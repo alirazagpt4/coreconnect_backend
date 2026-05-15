@@ -6,9 +6,11 @@ import { Op } from "sequelize";
 export const getAttendanceReport = async (req, res) => {
     try {
         const { fromDate, toDate, city_id, store_id, status, ba_id, channel_id } = req.query;
-        const host = "62.171.183.182";
+        const host = "ccapp.com.pk";
 
         let whereClause = {};
+
+        // 1. Core Attendance Table Filters
         if (fromDate && toDate) {
             whereClause.createdAt = {
                 [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
@@ -17,8 +19,38 @@ export const getAttendanceReport = async (req, res) => {
         if (ba_id && ba_id !== "") whereClause.user_id = ba_id;
         if (status === 'present' || status === 'absent') whereClause.status = status;
 
+        // 2. Complex Filtering for Store and Channel
+        let finalWhere = { ...whereClause };
+
+        // Agar channel_id ya store_id bhej rahe ho toh OR logic lagao
+        if (channel_id || store_id) {
+            const orConditions = [];
+
+            if (channel_id) {
+                orConditions.push(
+                    { '$user.assigned_stores.channel_id$': channel_id },
+                    { '$user.secondary_assigned_stores.channel_id$': channel_id },
+                    { '$user.tertiary_assigned_stores.channel_id$': channel_id }
+                );
+            }
+
+            if (store_id) {
+                orConditions.push(
+                    { '$user.assigned_stores.id$': store_id },
+                    { '$user.secondary_assigned_stores.id$': store_id },
+                    { '$user.tertiary_assigned_stores.id$': store_id }
+                );
+            }
+
+            finalWhere = {
+                ...whereClause,
+                [Op.or]: orConditions
+            };
+        }
+
         const data = await Attendance.findAll({
-            where: whereClause,
+            where: finalWhere,
+            subQuery: false,
             include: [
                 {
                     model: User, as: 'user',
@@ -26,7 +58,6 @@ export const getAttendanceReport = async (req, res) => {
                     where: city_id ? { city_id } : {},
                     include: [
                         { model: City, as: 'city', attributes: ['name'] },
-                        // SIRF YEH 3 INCLUDES RAKHNE HAIN
                         {
                             model: Store, as: 'assigned_stores',
                             include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
@@ -45,12 +76,11 @@ export const getAttendanceReport = async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
 
-        let totalCount = data.length;
         let presentCount = 0;
         let absentCount = 0;
 
         const report = data.map(val => {
-            // --- FIX: Teeno mein se jo bhi store mil jaye wo uthalo ---
+            // Frontend compatibility ke liye wahi logic jo tumne likha tha
             const store = val.user?.assigned_stores?.[0] ||
                 val.user?.secondary_assigned_stores?.[0] ||
                 val.user?.tertiary_assigned_stores?.[0] || {};
@@ -74,30 +104,26 @@ export const getAttendanceReport = async (req, res) => {
                 storeName: store.store_name || 'Not Assigned',
                 baName: val.user?.fullname || val.user?.name || 'Unknown',
                 attendance: isOnLeave ? 'Absent' : 'Present',
-                picture: val.image_uri ? `http://${host}${val.image_uri}` : null,
+                picture: val.image_uri ? `https://${host}${val.image_uri}` : null,
                 location: val.latitude ? `https://www.google.com/maps?q=${val.latitude},${val.longitude}` : 'No GPS'
             };
         });
 
-        const presentPer = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) : 0;
-        const absentPer = totalCount > 0 ? ((absentCount / totalCount) * 100).toFixed(1) : 0;
-
         res.json({
             success: true,
             summary: {
-                total: totalCount,
+                total: data.length,
                 present: presentCount,
                 absent: absentCount,
-                presentPercentage: `${presentPer}%`,
-                absentPercentage: `${absentPer}%`
+                presentPercentage: data.length > 0 ? `${((presentCount / data.length) * 100).toFixed(1)}%` : "0%",
+                absentPercentage: data.length > 0 ? `${((absentCount / data.length) * 100).toFixed(1)}%` : "0%"
             },
             count: report.length,
             data: report
         });
 
     } catch (err) {
-        console.error("Report Error:", err);
-        res.status(500).json({ success: false, message: "Server Error: " + err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
