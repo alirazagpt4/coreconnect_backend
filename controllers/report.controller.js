@@ -22,7 +22,6 @@ export const getAttendanceReport = async (req, res) => {
         // 2. Complex Filtering for Store and Channel
         let finalWhere = { ...whereClause };
 
-        // Agar channel_id ya store_id bhej rahe ho toh OR logic lagao
         if (channel_id || store_id) {
             const orConditions = [];
 
@@ -56,18 +55,26 @@ export const getAttendanceReport = async (req, res) => {
                     model: User, as: 'user',
                     attributes: ['fullname', 'name'],
                     where: city_id ? { city_id } : {},
+                    required: true,
                     include: [
                         { model: City, as: 'city', attributes: ['name'] },
                         {
                             model: Store, as: 'assigned_stores',
+                            // FIX: Agar store_id aaya hai toh query level par bhi optimize karo
+                            where: store_id ? { id: store_id } : (channel_id ? { channel_id } : {}),
+                            required: false,
                             include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
                         },
                         {
                             model: Store, as: 'secondary_assigned_stores',
+                            where: store_id ? { id: store_id } : (channel_id ? { channel_id } : {}),
+                            required: false,
                             include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
                         },
                         {
                             model: Store, as: 'tertiary_assigned_stores',
+                            where: store_id ? { id: store_id } : (channel_id ? { channel_id } : {}),
+                            required: false,
                             include: [{ model: Channel, as: 'channel', attributes: ['name'] }]
                         }
                     ]
@@ -80,10 +87,25 @@ export const getAttendanceReport = async (req, res) => {
         let absentCount = 0;
 
         const report = data.map(val => {
-            // Frontend compatibility ke liye wahi logic jo tumne likha tha
-            const store = val.user?.assigned_stores?.[0] ||
-                val.user?.secondary_assigned_stores?.[0] ||
-                val.user?.tertiary_assigned_stores?.[0] || {};
+            // Saare valid aur returned stores ko flat array mein convert karo
+            const primaryStores = val.user?.assigned_stores || [];
+            const secondaryStores = val.user?.secondary_assigned_stores || [];
+            const tertiaryStores = val.user?.tertiary_assigned_stores || [];
+
+            const allStores = [...primaryStores, ...secondaryStores, ...tertiaryStores];
+
+            let store = {};
+
+            if (store_id) {
+                // 1. Agar specific store filter kiya hai, toh pooray array mein se exact ID match karo
+                store = allStores.find(s => String(s.id) === String(store_id)) || {};
+            } else if (channel_id) {
+                // 2. Agar channel filter kiya hai, toh woh store uthao jo us channel se match ho
+                store = allStores.find(s => String(s.channel_id) === String(channel_id)) || {};
+            } else {
+                // 3. Fallback: Agar koi filter nahi hai, toh check karo database kis table ka data laya hai
+                store = primaryStores[0] || secondaryStores[0] || tertiaryStores[0] || {};
+            }
 
             const channelName = store.channel?.name || 'N/A';
             const isOnLeave = val.isLeave === true || val.isLeave === 1 || val.status === 'absent';
@@ -93,14 +115,14 @@ export const getAttendanceReport = async (req, res) => {
 
             return {
                 id: val.id,
-                date: val.createdAt.toLocaleDateString('en-GB', {
+                date: val.createdAt ? val.createdAt.toLocaleDateString('en-GB', {
                     day: '2-digit', month: 'short', year: 'numeric'
-                }),
+                }) : 'N/A',
                 time: val.mobile_time || 'N/A',
                 city: val.user?.city?.name || 'N/A',
                 channelName: channelName,
                 area: store.area || 'General',
-                storeID: store.id,
+                storeID: store.id || null,
                 storeName: store.store_name || 'Not Assigned',
                 baName: val.user?.fullname || val.user?.name || 'Unknown',
                 attendance: isOnLeave ? 'Absent' : 'Present',
