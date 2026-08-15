@@ -17,6 +17,11 @@ const Sale = sequelize.define("Sale", {
         allowNull: false,
         references: { model: 'Users', key: 'id' }
     },
+    idempotency_key: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        unique: true
+    },
     total_amount: {
         type: DataTypes.DECIMAL(15, 2),
         allowNull: false,
