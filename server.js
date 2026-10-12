@@ -42,6 +42,32 @@ app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'build')));
 
+// ==========================================
+// ?? HEALTH CHECK ENDPOINT
+// ==========================================
+app.get('/health', async (req, res) => {
+    const healthcheck = {
+        uptime: process.uptime(), // Server kitne seconds se chal raha hai
+        message: 'OK',
+        timestamp: new Date().toISOString(),
+        database: 'UNKNOWN'
+    };
+
+    try {
+        // Database connection test (Ping)
+        await sequelize.authenticate();
+        healthcheck.database = 'CONNECTED';
+
+        return res.status(200).json(healthcheck);
+    } catch (error) {
+        healthcheck.message = 'DEGRADED';
+        healthcheck.database = 'DISCONNECTED';
+        healthcheck.error = error.message;
+
+        // 503 Service Unavailable agar DB down ho
+        return res.status(503).json(healthcheck);
+    }
+});
 
 
 app.use("/api/users", userRoutes);
