@@ -23,6 +23,9 @@ import expiryStockRoutes from "./routes/expiryStock.routes.js";
 import shortTesterRoutes from "./routes/shortTester.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import helmet from "helmet";
+import { initCleanupTask } from './utils/cleanup.js';
+import './services/backupService.js';
+
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -42,6 +45,34 @@ app.use(morgan('dev'));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'build')));
+
+
+// ==========================================
+// ?? HEALTH CHECK ENDPOINT
+// ==========================================
+app.get('/api/health', async (req, res) => {
+    const healthcheck = {
+        uptime: process.uptime(), // Server kitne seconds se chal raha hai
+        message: 'OK',
+        timestamp: new Date().toISOString(),
+        database: 'UNKNOWN'
+    };
+
+    try {
+        // Database connection test (Ping)
+        await sequelize.authenticate();
+        healthcheck.database = 'CONNECTED';
+
+        return res.status(200).json(healthcheck);
+    } catch (error) {
+        healthcheck.message = 'DEGRADED';
+        healthcheck.database = 'DISCONNECTED';
+        healthcheck.error = error.message;
+
+        // 503 Service Unavailable agar DB down ho
+        return res.status(503).json(healthcheck);
+    }
+});
 
 
 
@@ -79,14 +110,19 @@ app.get(/.*/, (req, res) => {
 const startServer = async () => {
     try {
         await sequelize.authenticate();
-        console.log('âœ… MySQL Database Connected Successfully!');
+        console.log('✅ MySQL Database Connected Successfully!');
+
+
+        // --- CRON INITIALIZATION ---
+        initCleanupTask();
+        console.log("Cron Jobs Initialized");
 
         app.listen(PORT, () => {
-            console.log(`ðŸš€ Server is running on port ${PORT}`);
+            console.log(`🚀 Server is running on port ${PORT}`);
         });
     } catch (error) {
-        console.error('âŒ Unable to connect to the database:', error);
+        console.error('❌ Unable to connect to the database:', error);
     }
 };
 
-startServer();
+
